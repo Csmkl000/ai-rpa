@@ -16,8 +16,16 @@ export function useWorkflow() {
 
   const loadWorkflows = useCallback(async () => {
     try {
-      const result = await invoke<Workflow[]>("load_workflows");
-      setWorkflows(result);
+      const result = await invoke<any[]>("load_workflows");
+      // steps_json 从数据库读出来是字符串，需要解析为数组
+      const parsed: Workflow[] = result.map((w) => ({
+        id: w.id,
+        name: w.name,
+        steps: typeof w.steps_json === "string" ? JSON.parse(w.steps_json) : w.steps ?? [],
+        created_at: w.created_at,
+        updated_at: w.updated_at,
+      }));
+      setWorkflows(parsed);
     } catch (err) {
       console.error("加载工作流列表失败:", err);
     }

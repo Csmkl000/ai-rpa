@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import {
   ReactFlow,
   Background,
@@ -38,41 +38,63 @@ const TYPE_TO_NODE: Record<string, string> = {
   AUTONOMOUS_AGENT: "agent",
 };
 
+function buildFlowData(
+  steps: any[],
+  nodeStatuses: Record<string, string>,
+  onUpdate: (id: string, updates: Record<string, unknown>) => void,
+  onRemove: (id: string) => void
+) {
+  const nodes: Node[] = steps.map((step, i) => ({
+    id: step.id,
+    type: TYPE_TO_NODE[step.type] || "act",
+    position: { x: 250, y: i * 140 },
+    data: {
+      ...step,
+      status: nodeStatuses[step.id] || "idle",
+      onUpdate: (updates: Record<string, unknown>) => onUpdate(step.id, updates),
+      onRemove: () => onRemove(step.id),
+    },
+  }));
+
+  const edges: Edge[] = steps.slice(0, -1).map((step, i) => ({
+    id: `${step.id}-${steps[i + 1].id}`,
+    source: step.id,
+    target: steps[i + 1].id,
+    type: "smoothstep",
+    animated: nodeStatuses[step.id] === "running",
+    style: { stroke: "#6366f1" },
+  }));
+
+  return { nodes, edges };
+}
+
 export function WorkflowCanvas() {
   const currentWorkflow = useWorkflowStore((s) => s.currentWorkflow);
   const nodeStatuses = useWorkflowStore((s) => s.nodeStatuses);
   const updateStep = useWorkflowStore((s) => s.updateStep);
   const removeStep = useWorkflowStore((s) => s.removeStep);
 
-  const { initialNodes, initialEdges } = useMemo(() => {
-    if (!currentWorkflow) return { initialNodes: [], initialEdges: [] };
+  const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
 
-    const nodes: Node[] = currentWorkflow.steps.map((step, i) => ({
-      id: step.id,
-      type: TYPE_TO_NODE[step.type] || "act",
-      position: { x: 250, y: i * 140 },
-      data: {
-        ...step,
-        status: nodeStatuses[step.id] || "idle",
-        onUpdate: (updates: Record<string, unknown>) => updateStep(step.id, updates),
-        onRemove: () => removeStep(step.id),
-      },
-    }));
+  // 当工作流步骤或节点状态变化时，同步更新画布
+  useEffect(() => {
+    if (!currentWorkflow) {
+      setNodes([]);
+      setEdges([]);
+      return;
+    }
 
-    const edges: Edge[] = currentWorkflow.steps.slice(0, -1).map((step, i) => ({
-      id: `${step.id}-${currentWorkflow.steps[i + 1].id}`,
-      source: step.id,
-      target: currentWorkflow.steps[i + 1].id,
-      type: "smoothstep",
-      animated: nodeStatuses[step.id] === "running",
-      style: { stroke: "#6366f1" },
-    }));
+    const { nodes: newNodes, edges: newEdges } = buildFlowData(
+      currentWorkflow.steps,
+      nodeStatuses,
+      updateStep,
+      removeStep
+    );
 
-    return { initialNodes: nodes, initialEdges: edges };
-  }, [currentWorkflow, nodeStatuses, updateStep, removeStep]);
-
-  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+    setNodes(newNodes);
+    setEdges(newEdges);
+  }, [currentWorkflow, currentWorkflow?.steps, nodeStatuses, updateStep, removeStep, setNodes, setEdges]);
 
   const onConnect: OnConnect = useCallback(
     (params) => setEdges((eds) => addEdge({ ...params, type: "smoothstep", style: { stroke: "#6366f1" } }, eds)),
