@@ -2,6 +2,32 @@ use super::EngineEvent;
 use serde_json::json;
 use tauri::{AppHandle, Emitter, Manager};
 
+macro_rules! engine_log {
+    ($($arg:tt)*) => {
+        let msg = format!($($arg)*);
+        eprintln!("[ENGINE_SPAWN] {}", msg);
+        // 同时写入文件方便排查
+        if let Ok(mut f) = std::fs::OpenOptions::new()
+            .create(true).append(true)
+            .open(std::env::temp_dir().join("ai-rpa-engine.log"))
+        {
+            use std::io::Write;
+            let _ = writeln!(f, "[{}] {}", chrono_now(), msg);
+        }
+    };
+}
+
+fn chrono_now() -> String {
+    let d = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default();
+    let secs = d.as_secs();
+    let hours = (secs % 86400) / 3600;
+    let mins = (secs % 3600) / 60;
+    let ss = secs % 60;
+    format!("{:02}:{:02}:{:02}", hours, mins, ss)
+}
+
 pub async fn spawn_engine(
     app: AppHandle,
     workflow_json: String,
@@ -11,8 +37,16 @@ pub async fn spawn_engine(
     base_url: String,
     proxy_url: String,
 ) -> Result<(), String> {
+    engine_log!("=== spawn_engine 开始 ===");
+    engine_log!("当前工作目录: {:?}", std::env::current_dir());
+
     // 定位引擎脚本：开发模式下在项目目录，打包后在资源目录
     let engine_script = find_engine_script(&app)?;
+    engine_log!("引擎脚本: {}", engine_script);
+
+    // 查找 bun 可执行文件
+    let bun_path = find_bun_executable()?;
+    engine_log!("Bun 路径: {}", bun_path);
 
     let mut args = vec![
         engine_script.clone(),
@@ -39,14 +73,25 @@ pub async fn spawn_engine(
     // 查找 bun 可执行文件
     let bun_path = find_bun_executable()?;
 
+    engine_log!("准备启动: {} {}", bun_path, args.join(" "));
+
     let app_clone = app.clone();
 
-    let mut child = std::process::Command::new(&bun_path)
+    let mut child = match std::process::Command::new(&bun_path)
         .args(&args)
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
         .spawn()
-        .map_err(|e| format!("启动执行器失败: {} (bun: {})", e, bun_path))?;
+    {
+        Ok(c) => {
+            engine_log!("进程启动成功, pid={:?}", c.id());
+            c
+        }
+        Err(e) => {
+            engine_log!("进程启动失败: {}", e);
+            return Err(format!("启动执行器失败: {} (bun: {})", e, bun_path));
+        }
+    };
 
     let stdout = child.stdout.take().ok_or("无法获取 stdout")?;
     let stderr = child.stderr.take().ok_or("无法获取 stderr")?;

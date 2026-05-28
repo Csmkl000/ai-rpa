@@ -34,6 +34,13 @@ pub async fn run_workflow(
     let base_url = settings["base_url"].as_str().unwrap_or("").to_string();
     let proxy_url = settings["proxy_url"].as_str().unwrap_or("").to_string();
 
+    eprintln!("[ENGINE] api_key={}..., model={}, base_url={}, proxy={}",
+        if api_key.is_empty() { "(空)" } else { &api_key[..8.min(api_key.len())] },
+        model,
+        if base_url.is_empty() { "(空)" } else { &base_url },
+        if proxy_url.is_empty() { "(空)" } else { &proxy_url },
+    );
+
     if api_key.is_empty() {
         return Err("未配置 API Key。请先在设置面板中填写 LLM API Key。".to_string());
     }
