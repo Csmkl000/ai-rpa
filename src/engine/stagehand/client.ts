@@ -8,6 +8,7 @@ export interface StagehandConfig {
   apiKey?: string;
   model?: string;
   baseURL?: string;
+  headless?: boolean;
 }
 
 export async function createStagehand(config: StagehandConfig): Promise<Stagehand> {
@@ -36,7 +37,7 @@ export async function createStagehand(config: StagehandConfig): Promise<Stagehan
     cacheDir: config.cacheDir,
     verbose: 1,
     localBrowserLaunchOptions: {
-      headless: true,
+      headless: config.headless !== false,
       ...(config.proxyUrl ? { proxy: { server: config.proxyUrl } } : {}),
     },
     llmClient,

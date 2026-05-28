@@ -33,6 +33,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
     llm_provider: "openai",
     llm_api_key: "",
     llm_model: "gpt-4o",
+    headless: true,
     cache_ttl_days: 30,
   },
 

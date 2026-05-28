@@ -35,6 +35,7 @@ pub async fn spawn_engine(
     model: String,
     base_url: String,
     proxy_url: String,
+    headless: bool,
 ) -> Result<(), String> {
     engine_log!("=== spawn_engine 开始 ===");
 
@@ -67,6 +68,8 @@ pub async fn spawn_engine(
         base_url,
         "--proxy".to_string(),
         proxy_url,
+        "--headless".to_string(),
+        headless.to_string(),
     ];
 
     engine_log!("启动命令: {} {}", bun_path, args.join(" "));

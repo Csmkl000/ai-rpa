@@ -33,6 +33,7 @@ pub async fn run_workflow(
     let model = settings["llm_model"].as_str().unwrap_or("gpt-4o").to_string();
     let base_url = settings["base_url"].as_str().unwrap_or("").to_string();
     let proxy_url = settings["proxy_url"].as_str().unwrap_or("").to_string();
+    let headless = settings["headless"].as_bool().unwrap_or(true);
 
     eprintln!("[ENGINE] api_key={}..., model={}, base_url={}, proxy={}",
         if api_key.is_empty() { "(空)" } else { &api_key[..8.min(api_key.len())] },
@@ -72,6 +73,7 @@ pub async fn run_workflow(
             model,
             base_url,
             proxy_url,
+            headless,
         )
         .await;
 

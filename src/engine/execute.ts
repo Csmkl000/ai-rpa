@@ -31,6 +31,7 @@ function parseArgs(): {
   model: string;
   baseURL: string;
   proxyUrl: string;
+  headless: boolean;
 } {
   const args = process.argv.slice(2);
   let workflowFile = "";
@@ -39,6 +40,7 @@ function parseArgs(): {
   let model = "gpt-4o";
   let baseURL = "";
   let proxyUrl = "";
+  let headless = true;
 
   for (let i = 0; i < args.length; i++) {
     const next = args[i + 1];
@@ -49,6 +51,7 @@ function parseArgs(): {
       case "--model": model = next; i++; break;
       case "--base-url": baseURL = next; i++; break;
       case "--proxy": proxyUrl = next; i++; break;
+      case "--headless": headless = next !== "false"; i++; break;
     }
   }
 
@@ -65,11 +68,12 @@ function parseArgs(): {
     model,
     baseURL,
     proxyUrl,
+    headless,
   };
 }
 
 async function runEngine() {
-  const { workflow, cacheDir, apiKey, model, baseURL, proxyUrl } = parseArgs();
+  const { workflow, cacheDir, apiKey, model, baseURL, proxyUrl, headless } = parseArgs();
 
   const stagehand = await createStagehand({
     cacheDir,
@@ -77,6 +81,7 @@ async function runEngine() {
     model,
     baseURL,
     proxyUrl,
+    headless,
   });
 
   for (const step of workflow.steps) {

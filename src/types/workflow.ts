@@ -43,5 +43,6 @@ export interface AppSettings {
   llm_model: string;
   base_url?: string;
   proxy_url?: string;
+  headless: boolean;
   cache_ttl_days: number;
 }

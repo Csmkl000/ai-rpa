@@ -103,6 +103,26 @@ export function SettingsPanel() {
           />
         </div>
 
+        {/* Headless toggle */}
+        <div className="flex items-center justify-between">
+          <div>
+            <label className="text-sm text-gray-400">无头浏览器</label>
+            <p className="text-xs text-gray-500">关闭后可看到浏览器操作过程</p>
+          </div>
+          <button
+            onClick={() => setLocal({ ...local, headless: !local.headless })}
+            className={`relative w-11 h-6 rounded-full transition-colors ${
+              local.headless ? "bg-blue-600" : "bg-gray-600"
+            }`}
+          >
+            <span
+              className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform ${
+                local.headless ? "translate-x-5" : ""
+              }`}
+            />
+          </button>
+        </div>
+
         {/* Cache TTL */}
         <div>
           <label className="block text-sm text-gray-400 mb-1">缓存过期天数</label>

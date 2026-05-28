@@ -9,6 +9,7 @@ pub struct AppSettings {
     pub llm_model: String,
     pub base_url: Option<String>,
     pub proxy_url: Option<String>,
+    pub headless: bool,
     pub cache_ttl_days: i64,
 }
 
@@ -20,6 +21,7 @@ impl Default for AppSettings {
             llm_model: "gpt-4o".to_string(),
             base_url: None,
             proxy_url: None,
+            headless: true,
             cache_ttl_days: 30,
         }
     }
