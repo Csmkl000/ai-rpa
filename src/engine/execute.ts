@@ -24,33 +24,59 @@ interface Workflow {
   steps: WorkflowStep[];
 }
 
-function parseArgs(): { workflow: Workflow; cacheDir: string } {
+function parseArgs(): {
+  workflow: Workflow;
+  cacheDir: string;
+  apiKey: string;
+  model: string;
+  baseURL: string;
+  proxyUrl: string;
+} {
   const args = process.argv.slice(2);
   let workflowJson = "";
   let cacheDir = "";
+  let apiKey = "";
+  let model = "gpt-4o";
+  let baseURL = "";
+  let proxyUrl = "";
 
   for (let i = 0; i < args.length; i++) {
-    if (args[i] === "--workflow" && args[i + 1]) {
-      workflowJson = args[i + 1];
-      i++;
-    } else if (args[i] === "--cache-dir" && args[i + 1]) {
-      cacheDir = args[i + 1];
-      i++;
+    const next = args[i + 1];
+    switch (args[i]) {
+      case "--workflow": workflowJson = next; i++; break;
+      case "--cache-dir": cacheDir = next; i++; break;
+      case "--api-key": apiKey = next; i++; break;
+      case "--model": model = next; i++; break;
+      case "--base-url": baseURL = next; i++; break;
+      case "--proxy": proxyUrl = next; i++; break;
     }
   }
 
   if (!workflowJson) {
-    throw new Error("缺少 --workflow 参数");
+    throw new Error("Missing --workflow argument");
   }
 
   const workflow: Workflow = JSON.parse(workflowJson);
-  return { workflow, cacheDir: cacheDir || "/tmp/stagehand-cache" };
+  return {
+    workflow,
+    cacheDir: cacheDir || "/tmp/stagehand-cache",
+    apiKey,
+    model,
+    baseURL,
+    proxyUrl,
+  };
 }
 
 async function runEngine() {
-  const { workflow, cacheDir } = parseArgs();
+  const { workflow, cacheDir, apiKey, model, baseURL, proxyUrl } = parseArgs();
 
-  const stagehand = await createStagehand({ cacheDir });
+  const stagehand = await createStagehand({
+    cacheDir,
+    apiKey,
+    model,
+    baseURL,
+    proxyUrl,
+  });
 
   for (const step of workflow.steps) {
     switch (step.type) {

@@ -7,6 +7,9 @@ pub async fn spawn_engine(
     app: AppHandle,
     workflow_json: String,
     cache_dir: String,
+    api_key: String,
+    model: String,
+    proxy_url: String,
 ) -> Result<(), String> {
     let app_data_dir = app
         .path()
@@ -16,17 +19,28 @@ pub async fn spawn_engine(
     let engine_script = app_data_dir.join("src/engine/execute.ts");
     let engine_script_str = engine_script.to_string_lossy().to_string();
 
+    let mut args = vec![
+        engine_script_str.clone(),
+        "--workflow".to_string(),
+        workflow_json,
+        "--cache-dir".to_string(),
+        cache_dir,
+        "--api-key".to_string(),
+        api_key,
+        "--model".to_string(),
+        model,
+    ];
+
+    if !proxy_url.is_empty() {
+        args.push("--proxy".to_string());
+        args.push(proxy_url);
+    }
+
     let shell = app.shell();
     let (mut rx, _child) = shell
         .sidecar("bun")
         .map_err(|e| format!("初始化 Bun Sidecar 失败: {}", e))?
-        .args([
-            &engine_script_str,
-            "--workflow",
-            &workflow_json,
-            "--cache-dir",
-            &cache_dir,
-        ])
+        .args(&args)
         .spawn()
         .map_err(|e| format!("启动执行器失败: {}", e))?;
 
@@ -103,6 +117,11 @@ fn parse_engine_line(line: &str) -> EngineEvent {
     } else if line.contains("[PAGINATION_FINISHED]") {
         EngineEvent {
             event_type: "PAGINATION_FINISHED".to_string(),
+            data: json!({ "log": line }),
+        }
+    } else if line.contains("[ENGINE_BOOT]") {
+        EngineEvent {
+            event_type: "ENGINE_BOOT".to_string(),
             data: json!({ "log": line }),
         }
     } else {
