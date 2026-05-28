@@ -1,4 +1,5 @@
-import { Stagehand } from "@browserbasehq/stagehand";
+import { Stagehand, AISdkClient } from "@browserbasehq/stagehand";
+import { createOpenAI } from "@ai-sdk/openai";
 import { emit, emitError } from "../protocol/messages";
 
 export interface StagehandConfig {
@@ -15,21 +16,18 @@ export async function createStagehand(config: StagehandConfig): Promise<Stagehan
     throw new Error("Missing API Key");
   }
 
-  // Stagehand 要求 provider/model 格式，自动补全
-  let modelName = config.model || "gpt-4o";
-  if (!modelName.includes("/")) {
-    // 用户只填了模型名如 "mimo-v2.5"，根据是否有 baseURL 判断 provider
-    if (config.baseURL) {
-      modelName = `openai/${modelName}`;
-    } else {
-      modelName = `openai/${modelName}`;
-    }
-  }
+  const rawModel = config.model || "gpt-4o";
+  // 去掉 provider/ 前缀，只保留模型名
+  const modelName = rawModel.includes("/") ? rawModel.split("/").pop()! : rawModel;
 
-  const clientOptions: Record<string, unknown> = { apiKey: config.apiKey };
-  if (config.baseURL) {
-    clientOptions.baseURL = config.baseURL;
-  }
+  // 创建 OpenAI provider，强制走 chat completions（/v1/chat/completions）
+  // 第三方 API 不支持新版 /v1/responses 接口
+  const openaiProvider = createOpenAI({
+    apiKey: config.apiKey,
+    baseURL: config.baseURL || undefined,
+  });
+  const chatModel = openaiProvider.chat(modelName as any);
+  const llmClient = new AISdkClient({ model: chatModel });
 
   const stagehand = new Stagehand({
     env: "LOCAL",
@@ -39,10 +37,7 @@ export async function createStagehand(config: StagehandConfig): Promise<Stagehan
       headless: true,
       ...(config.proxyUrl ? { proxy: { server: config.proxyUrl } } : {}),
     },
-    model: {
-      modelName: modelName as any,
-      ...clientOptions,
-    },
+    llmClient,
   });
 
   await stagehand.init();
