@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+src-tauri/target/
+
+# Bun
+bun.lock
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+
+# Binaries (too large for git)
+binaries/
+src-tauri/binaries/
+
+# Tauri generated
+src-tauri/icons/*.png
+!src-tauri/icons/.gitkeep

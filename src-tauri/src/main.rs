@@ -1,0 +1,36 @@
+mod commands;
+mod db;
+mod process;
+
+use tauri::Manager;
+
+fn main() {
+    tauri::Builder::default()
+        .plugin(tauri_plugin_shell::init())
+        .setup(|app| {
+            let app_handle = app.handle().clone();
+            let db_path = app_handle
+                .path()
+                .app_data_dir()
+                .expect("无法获取 AppData 目录")
+                .join("ai-rpa.db");
+
+            std::fs::create_dir_all(db_path.parent().unwrap()).ok();
+
+            let conn = db::init_database(&db_path)?;
+            app.manage(db::DatabaseState(std::sync::Mutex::new(conn)));
+            app.manage(process::EngineState::default());
+            Ok(())
+        })
+        .invoke_handler(tauri::generate_handler![
+            commands::workflow::save_workflow,
+            commands::workflow::load_workflows,
+            commands::workflow::delete_workflow,
+            commands::engine::run_workflow,
+            commands::engine::stop_workflow,
+            commands::settings::get_settings,
+            commands::settings::update_settings,
+        ])
+        .run(tauri::generate_context!())
+        .expect("AI-RPA 启动失败");
+}
