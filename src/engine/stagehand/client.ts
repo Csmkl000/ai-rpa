@@ -11,15 +11,22 @@ export interface StagehandConfig {
 
 export async function createStagehand(config: StagehandConfig): Promise<Stagehand> {
   if (!config.apiKey) {
-    emitError(
-      "未配置 API Key。请在设置面板中填写 LLM API Key 后再运行工作流。"
-    );
+    emitError("未配置 API Key。请在设置面板中填写 LLM API Key 后再运行工作流。");
     throw new Error("Missing API Key");
   }
 
-  const clientOptions: Record<string, unknown> = {
-    apiKey: config.apiKey,
-  };
+  // Stagehand 要求 provider/model 格式，自动补全
+  let modelName = config.model || "gpt-4o";
+  if (!modelName.includes("/")) {
+    // 用户只填了模型名如 "mimo-v2.5"，根据是否有 baseURL 判断 provider
+    if (config.baseURL) {
+      modelName = `openai/${modelName}`;
+    } else {
+      modelName = `openai/${modelName}`;
+    }
+  }
+
+  const clientOptions: Record<string, unknown> = { apiKey: config.apiKey };
   if (config.baseURL) {
     clientOptions.baseURL = config.baseURL;
   }
@@ -30,12 +37,10 @@ export async function createStagehand(config: StagehandConfig): Promise<Stagehan
     verbose: 1,
     localBrowserLaunchOptions: {
       headless: true,
-      ...(config.proxyUrl
-        ? { proxy: { server: config.proxyUrl } }
-        : {}),
+      ...(config.proxyUrl ? { proxy: { server: config.proxyUrl } } : {}),
     },
     model: {
-      modelName: (config.model || "gpt-4o") as any,
+      modelName: modelName as any,
       ...clientOptions,
     },
   });
@@ -44,7 +49,7 @@ export async function createStagehand(config: StagehandConfig): Promise<Stagehan
   emit("ENGINE_BOOT", {
     message: "Stagehand v3 CDP 引擎初始化完毕",
     cacheDir: config.cacheDir,
-    model: config.model || "gpt-4o",
+    model: modelName,
   });
 
   return stagehand;
