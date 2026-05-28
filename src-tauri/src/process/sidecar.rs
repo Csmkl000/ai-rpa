@@ -171,26 +171,11 @@ fn find_engine_script(app: &AppHandle) -> Result<String, String> {
 }
 
 fn find_bun_executable() -> Result<String, String> {
-    // 1. 先查 PATH
-    if let Ok(output) = std::process::Command::new(if cfg!(windows) { "where" } else { "which" })
-        .arg("bun")
-        .output()
-    {
-        let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
-        if !path.is_empty() {
-            // Windows where 可能返回多行，取第一行
-            let first = path.lines().next().unwrap_or(&path).to_string();
-            if std::path::Path::new(&first).exists() {
-                return Ok(first);
-            }
-        }
-    }
-
-    // 2. 常见安装路径
     let home = std::env::var("USERPROFILE")
         .or_else(|_| std::env::var("HOME"))
         .unwrap_or_default();
 
+    // 优先查已知安装路径（避免 PATH 中的假 bun）
     let candidates: Vec<String> = if cfg!(windows) {
         vec![
             format!("{}\\.bun\\bin\\bun.exe", home),
@@ -210,8 +195,23 @@ fn find_bun_executable() -> Result<String, String> {
         }
     }
 
+    // 最后才查 PATH
+    if let Ok(output) = std::process::Command::new(if cfg!(windows) { "where" } else { "which" })
+        .arg("bun")
+        .output()
+    {
+        let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        if !path.is_empty() {
+            let first = path.lines().next().unwrap_or(&path).to_string();
+            // 排除 target/debug 下的假 bun
+            if !first.contains("target") && std::path::Path::new(&first).exists() {
+                return Ok(first);
+            }
+        }
+    }
+
     Err(format!(
-        "找不到 bun 可执行文件。请确保 bun 已安装并在 PATH 中。候选路径: {:?}",
+        "找不到 bun。请确认已安装: https://bun.sh。候选路径: {:?}",
         candidates
     ))
 }
