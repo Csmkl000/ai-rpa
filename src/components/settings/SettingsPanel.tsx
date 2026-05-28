@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useWorkflowStore } from "../../stores/workflowStore";
 import { getSettings, updateSettings } from "../../lib/tauri";
+import { logger } from "../../lib/logger";
 import type { AppSettings } from "../../types/workflow";
 
 export function SettingsPanel() {
@@ -18,13 +19,15 @@ export function SettingsPanel() {
   }, [settings]);
 
   const handleSave = async () => {
+    logger.info("Settings", "保存设置", { provider: local.llm_provider, model: local.llm_model });
     try {
       await updateSettings(local);
       setSettings(local);
       setSaved(true);
+      logger.info("Settings", "设置保存成功");
       setTimeout(() => setSaved(false), 2000);
-    } catch (err) {
-      console.error("保存设置失败:", err);
+    } catch (err: any) {
+      logger.error("Settings", "保存设置失败:", err);
     }
   };
 
