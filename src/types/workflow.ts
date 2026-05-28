@@ -41,6 +41,7 @@ export interface AppSettings {
   llm_provider: string;
   llm_api_key: string;
   llm_model: string;
+  base_url?: string;
   proxy_url?: string;
   cache_ttl_days: number;
 }

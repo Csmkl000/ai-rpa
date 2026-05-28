@@ -9,6 +9,7 @@ pub async fn spawn_engine(
     cache_dir: String,
     api_key: String,
     model: String,
+    base_url: String,
     proxy_url: String,
 ) -> Result<(), String> {
     let app_data_dir = app
@@ -30,6 +31,11 @@ pub async fn spawn_engine(
         "--model".to_string(),
         model,
     ];
+
+    if !base_url.is_empty() {
+        args.push("--base-url".to_string());
+        args.push(base_url);
+    }
 
     if !proxy_url.is_empty() {
         args.push("--proxy".to_string());

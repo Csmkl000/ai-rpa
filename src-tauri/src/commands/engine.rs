@@ -31,6 +31,7 @@ pub async fn run_workflow(
 
     let api_key = settings["llm_api_key"].as_str().unwrap_or("").to_string();
     let model = settings["llm_model"].as_str().unwrap_or("gpt-4o").to_string();
+    let base_url = settings["base_url"].as_str().unwrap_or("").to_string();
     let proxy_url = settings["proxy_url"].as_str().unwrap_or("").to_string();
 
     if api_key.is_empty() {
@@ -62,6 +63,7 @@ pub async fn run_workflow(
             cache_dir,
             api_key,
             model,
+            base_url,
             proxy_url,
         )
         .await;

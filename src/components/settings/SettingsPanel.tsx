@@ -45,6 +45,7 @@ export function SettingsPanel() {
             <option value="anthropic">Anthropic (Claude)</option>
             <option value="google">Google (Gemini)</option>
             <option value="ollama">Ollama (本地)</option>
+            <option value="custom">自定义 (OpenAI 兼容)</option>
           </select>
         </div>
 
@@ -58,8 +59,20 @@ export function SettingsPanel() {
             className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
             placeholder="sk-..."
           />
+        </div>
+
+        {/* Base URL */}
+        <div>
+          <label className="block text-sm text-gray-400 mb-1">API Base URL（可选）</label>
+          <input
+            type="text"
+            value={local.base_url || ""}
+            onChange={(e) => setLocal({ ...local, base_url: e.target.value || undefined })}
+            className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+            placeholder="https://api.openai.com/v1"
+          />
           <p className="text-xs text-gray-500 mt-1">
-            使用 Ollama 本地模型时可留空
+            留空使用官方地址。第三方中转站填此处，如 https://api.example.com/v1
           </p>
         </div>
 

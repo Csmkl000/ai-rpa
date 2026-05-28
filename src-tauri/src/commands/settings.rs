@@ -7,6 +7,7 @@ pub struct AppSettings {
     pub llm_provider: String,
     pub llm_api_key: String,
     pub llm_model: String,
+    pub base_url: Option<String>,
     pub proxy_url: Option<String>,
     pub cache_ttl_days: i64,
 }
@@ -17,6 +18,7 @@ impl Default for AppSettings {
             llm_provider: "openai".to_string(),
             llm_api_key: String::new(),
             llm_model: "gpt-4o".to_string(),
+            base_url: None,
             proxy_url: None,
             cache_ttl_days: 30,
         }
