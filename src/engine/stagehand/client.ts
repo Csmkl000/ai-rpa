@@ -1,5 +1,5 @@
-import { Stagehand, AISdkClient } from "@browserbasehq/stagehand";
-import { createOpenAI } from "@ai-sdk/openai";
+import { Stagehand, CustomOpenAIClient } from "@browserbasehq/stagehand";
+import OpenAI from "openai";
 import { emit, emitError } from "../protocol/messages";
 
 export interface StagehandConfig {
@@ -17,17 +17,19 @@ export async function createStagehand(config: StagehandConfig): Promise<Stagehan
   }
 
   const rawModel = config.model || "gpt-4o";
-  // 去掉 provider/ 前缀，只保留模型名
   const modelName = rawModel.includes("/") ? rawModel.split("/").pop()! : rawModel;
 
-  // 创建 OpenAI provider，强制走 chat completions（/v1/chat/completions）
-  // 第三方 API 不支持新版 /v1/responses 接口
-  const openaiProvider = createOpenAI({
+  // 用 CustomOpenAIClient 直接调 OpenAI 兼容 API
+  // 它用 response_format: json_object + prompt 注入 schema，比 AISdkClient 的 structured output 兼容性更好
+  const openaiClient = new OpenAI({
     apiKey: config.apiKey,
     baseURL: config.baseURL || undefined,
   });
-  const chatModel = openaiProvider.chat(modelName as any);
-  const llmClient = new AISdkClient({ model: chatModel });
+
+  const llmClient = new CustomOpenAIClient({
+    modelName,
+    client: openaiClient,
+  });
 
   const stagehand = new Stagehand({
     env: "LOCAL",
