@@ -28,9 +28,6 @@
     "targets": "all",
     "resources": [
       "../src/engine/**/*"
-    ],
-    "externalBin": [
-      "binaries/bun"
     ]
   }
 }
