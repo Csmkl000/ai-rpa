@@ -1,8 +1,8 @@
-import { useEffect, useCallback } from "react";
+import { useEffect, useCallback, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useWorkflowStore } from "../stores/workflowStore";
-import type { EngineEvent, Workflow } from "../types/workflow";
+import type { EngineEvent } from "../types/workflow";
 
 export function useEngine() {
   const {
@@ -13,6 +13,8 @@ export function useEngine() {
     setNodeStatus,
     resetNodeStatuses,
   } = useWorkflowStore();
+
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const unlisten = listen<EngineEvent>("rpa-event", (event) => {
@@ -42,6 +44,7 @@ export function useEngine() {
           break;
         case "ERROR":
           if (data.step_id) setNodeStatus(data.step_id as string, "error");
+          if (data.message) setError(data.message as string);
           break;
       }
     });
@@ -54,6 +57,7 @@ export function useEngine() {
   const runWorkflow = useCallback(async () => {
     if (!currentWorkflow || isRunning) return;
 
+    setError(null);
     resetNodeStatuses();
     setRunning(true);
 
@@ -64,8 +68,9 @@ export function useEngine() {
         workflowJson,
         workflowId: currentWorkflow.id ?? 0,
       });
-    } catch (err) {
-      console.error("启动工作流失败:", err);
+    } catch (err: any) {
+      const msg = typeof err === "string" ? err : err?.message || String(err);
+      setError(msg);
       setRunning(false);
     }
   }, [currentWorkflow, isRunning, resetNodeStatuses, setRunning]);
@@ -79,5 +84,7 @@ export function useEngine() {
     }
   }, [setRunning]);
 
-  return { runWorkflow, stopWorkflow, isRunning };
+  const clearError = useCallback(() => setError(null), []);
+
+  return { runWorkflow, stopWorkflow, isRunning, error, clearError };
 }
