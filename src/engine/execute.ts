@@ -33,7 +33,7 @@ function parseArgs(): {
   proxyUrl: string;
 } {
   const args = process.argv.slice(2);
-  let workflowJson = "";
+  let workflowFile = "";
   let cacheDir = "";
   let apiKey = "";
   let model = "gpt-4o";
@@ -43,7 +43,7 @@ function parseArgs(): {
   for (let i = 0; i < args.length; i++) {
     const next = args[i + 1];
     switch (args[i]) {
-      case "--workflow": workflowJson = next; i++; break;
+      case "--workflow-file": workflowFile = next; i++; break;
       case "--cache-dir": cacheDir = next; i++; break;
       case "--api-key": apiKey = next; i++; break;
       case "--model": model = next; i++; break;
@@ -52,10 +52,11 @@ function parseArgs(): {
     }
   }
 
-  if (!workflowJson) {
-    throw new Error("Missing --workflow argument");
+  if (!workflowFile) {
+    throw new Error("Missing --workflow-file argument");
   }
 
+  const workflowJson = require("fs").readFileSync(workflowFile, "utf-8");
   const workflow: Workflow = JSON.parse(workflowJson);
   return {
     workflow,
