@@ -55,21 +55,35 @@ export function useEngine() {
   }, [addEngineEvent, setNodeStatus, setRunning]);
 
   const runWorkflow = useCallback(async () => {
-    if (!currentWorkflow || isRunning) return;
+    console.log("[runWorkflow] called, currentWorkflow:", currentWorkflow, "isRunning:", isRunning);
+
+    if (!currentWorkflow) {
+      setError("请先创建或选择一个工作流");
+      return;
+    }
+    if (isRunning) return;
+
+    if (!currentWorkflow.steps || currentWorkflow.steps.length === 0) {
+      setError("工作流没有任何步骤，请先添加步骤");
+      return;
+    }
 
     setError(null);
     resetNodeStatuses();
     setRunning(true);
 
     const workflowJson = JSON.stringify(currentWorkflow);
+    console.log("[runWorkflow] workflowJson:", workflowJson);
 
     try {
-      await invoke("run_workflow", {
+      const result = await invoke("run_workflow", {
         workflowJson,
         workflowId: currentWorkflow.id ?? 0,
       });
+      console.log("[runWorkflow] result:", result);
     } catch (err: any) {
       const msg = typeof err === "string" ? err : err?.message || String(err);
+      console.error("[runWorkflow] error:", msg);
       setError(msg);
       setRunning(false);
     }
