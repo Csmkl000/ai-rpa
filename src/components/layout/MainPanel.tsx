@@ -1,5 +1,7 @@
+import { useState } from "react";
 import { useWorkflowStore } from "../../stores/workflowStore";
 import { useEngine } from "../../hooks/useEngine";
+import { useRecorder } from "../../hooks/useRecorder";
 import { WorkflowCanvas } from "../canvas/WorkflowCanvas";
 import { StepType } from "../../types/workflow";
 
@@ -16,6 +18,9 @@ export function MainPanel() {
   const currentWorkflow = useWorkflowStore((s) => s.currentWorkflow);
   const { runWorkflow, stopWorkflow, isRunning, error, clearError, captchaStepId, continueAfterCaptcha } = useEngine();
   const addStep = useWorkflowStore((s) => s.addStep);
+  const { isRecording, recordedSteps, startRecording, stopRecording, addRecordedToWorkflow } = useRecorder();
+  const [recordUrl, setRecordUrl] = useState("https://");
+  const [showRecordInput, setShowRecordInput] = useState(false);
 
   const handleAddStep = (type: StepType) => {
     const labels: Record<StepType, string> = {
@@ -63,6 +68,51 @@ export function MainPanel() {
 
         <div className="flex-1" />
 
+        {/* 指南 5: 智能录制按钮 */}
+        {isRecording ? (
+          <button
+            onClick={() => {
+              stopRecording();
+              addRecordedToWorkflow();
+            }}
+            className="px-3 py-1.5 bg-red-600 hover:bg-red-500 rounded text-xs font-medium transition-colors animate-pulse"
+          >
+            ⏹ 停止录制 ({recordedSteps.length} 步)
+          </button>
+        ) : showRecordInput ? (
+          <div className="flex gap-1">
+            <input
+              type="text"
+              value={recordUrl}
+              onChange={(e) => setRecordUrl(e.target.value)}
+              className="bg-gray-800 border border-gray-700 rounded px-2 py-1 text-xs w-48 focus:outline-none focus:border-blue-500"
+              placeholder="https://example.com"
+            />
+            <button
+              onClick={() => { startRecording(recordUrl); setShowRecordInput(false); }}
+              className="px-2 py-1 bg-green-600 hover:bg-green-500 rounded text-xs"
+            >
+              开始
+            </button>
+            <button
+              onClick={() => setShowRecordInput(false)}
+              className="px-2 py-1 bg-gray-700 hover:bg-gray-600 rounded text-xs"
+            >
+              取消
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => setShowRecordInput(true)}
+            disabled={isRunning}
+            className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 rounded text-xs font-medium transition-colors"
+          >
+            ⏺ 智能录制
+          </button>
+        )}
+
+        <div className="w-px h-6 bg-gray-700 mx-1" />
+
         {/* Step type buttons */}
         <div className="flex gap-1">
           {STEP_TYPES.map((st) => (
@@ -107,7 +157,7 @@ export function MainPanel() {
         </div>
       )}
 
-      {/* 指南 5: 验证码/2FA 人工介入对话框 */}
+      {/* 指南 5: 验证码人工介入对话框 */}
       {captchaStepId && (
         <div className="bg-yellow-900/50 border-b border-yellow-700 px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2">

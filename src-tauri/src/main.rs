@@ -47,6 +47,8 @@ fn main() {
             commands::settings::get_settings,
             commands::settings::update_settings,
             commands::settings::cleanup_cache,
+            commands::recorder::start_recording,
+            commands::recorder::stop_recording,
         ])
         .run(tauri::generate_context!())
         .expect("AI-RPA 启动失败");
