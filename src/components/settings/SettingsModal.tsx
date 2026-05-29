@@ -142,33 +142,6 @@ export function SettingsModal() {
             </button>
           </div>
 
-          {/* 控制级别 */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">AI 对话控制级别</label>
-            <div className="space-y-2">
-              {[
-                { value: "auto", label: "自动模式", desc: "AI 生成指令后直接执行，全程不干预" },
-                { value: "confirm", label: "确认模式", desc: "每条指令生成后暂停，确认才执行（默认）" },
-                { value: "step", label: "单步模式", desc: "每步都暂停，确认后只执行一步" },
-              ].map((opt) => (
-                <label key={opt.value} className="flex items-start gap-3 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="control_level"
-                    value={opt.value}
-                    checked={(local.control_level || "confirm") === opt.value}
-                    onChange={() => setLocal({ ...local, control_level: opt.value as any })}
-                    className="mt-0.5"
-                  />
-                  <div>
-                    <span className="text-sm text-gray-700">{opt.label}</span>
-                    <p className="text-xs text-gray-400">{opt.desc}</p>
-                  </div>
-                </label>
-              ))}
-            </div>
-          </div>
-
           {/* 缓存 TTL */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">缓存过期天数</label>

@@ -35,7 +35,6 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
     llm_model: "gpt-4o",
     headless: true,
     cache_ttl_days: 30,
-    control_level: "confirm",
   },
 
   setWorkflows: (workflows) => set({ workflows }),

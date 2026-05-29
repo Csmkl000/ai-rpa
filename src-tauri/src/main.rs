@@ -54,7 +54,6 @@ fn main() {
             commands::scheduler::delete_schedule,
             commands::scheduler::toggle_schedule,
             commands::browser::check_browser,
-            commands::chat::chat_step,
         ])
         .run(tauri::generate_context!())
         .expect("AI-RPA 启动失败");
