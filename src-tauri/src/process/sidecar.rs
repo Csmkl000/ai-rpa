@@ -90,7 +90,7 @@ pub async fn spawn_engine(
     engine_log!("Bun 路径: {}", bun_path);
     engine_log!("启动命令: {} {}", bun_path, args_clone.join(" "));
 
-    let mut child = match std::process::Command::new(&bun_path)
+    let child = match std::process::Command::new(&bun_path)
         .args(&args_clone)
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())

@@ -1,6 +1,5 @@
-use crate::db::{queries, DatabaseState};
+use crate::db::DatabaseState;
 use serde::{Deserialize, Serialize};
-use std::sync::Mutex;
 use tauri::State;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -10,16 +9,6 @@ pub struct ScheduledTask {
     pub cron_expr: String,
     pub enabled: bool,
     pub workflow_name: String,
-}
-
-pub struct SchedulerState {
-    pub tasks: Mutex<Vec<ScheduledTask>>,
-}
-
-impl Default for SchedulerState {
-    fn default() -> Self {
-        Self { tasks: Mutex::new(Vec::new()) }
-    }
 }
 
 /// 保存定时任务
