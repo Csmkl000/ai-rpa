@@ -73,6 +73,32 @@ const RECORD_SCRIPT = `
     if (!window.__RECORDING_ACTIVE__) return;
     window.__RECORDED_ACTIONS__.push({ instruction: '提交表单', ts: Date.now() });
   }, true);
+
+  // 捕获输入操作（失焦时记录，避免记录每次按键）
+  var inputTimers = new WeakMap();
+  document.addEventListener('focus', function(e) {
+    var el = e.target;
+    if (el.tagName !== 'INPUT' && el.tagName !== 'TEXTAREA') return;
+    if (el.type === 'hidden' || el.type === 'submit' || el.type === 'button') return;
+    // 记录初始值
+    el.__RECORDER_OLD_VALUE__ = el.value || '';
+  }, true);
+
+  document.addEventListener('blur', function(e) {
+    if (!window.__RECORDING_ACTIVE__) return;
+    var el = e.target;
+    if (el.tagName !== 'INPUT' && el.tagName !== 'TEXTAREA') return;
+    if (el.type === 'hidden' || el.type === 'submit' || el.type === 'button') return;
+    var newValue = el.value || '';
+    var oldValue = el.__RECORDER_OLD_VALUE__ || '';
+    if (newValue && newValue !== oldValue) {
+      var placeholder = el.getAttribute('placeholder') || '';
+      var ariaLabel = el.getAttribute('aria-label') || '';
+      var label = ariaLabel || placeholder || '';
+      var instruction = label ? '在"' + label.slice(0, 15) + '"中输入"' + newValue.slice(0, 20) + '"' : '在输入框中输入"' + newValue.slice(0, 20) + '"';
+      window.__RECORDED_ACTIONS__.push({ instruction: instruction, ts: Date.now() });
+    }
+  }, true);
 })();
 `;
 
