@@ -75,22 +75,22 @@ pub async fn run_workflow(
         )
         .await;
 
-        // 用 app.state() 获取真正的全局 EngineState，重置 running
-        let engine_state = app_clone.state::<EngineState>();
-        let mut running = engine_state.running.lock().unwrap();
-        *running = false;
-
+        // spawn_engine 内部的 IO 线程会在进程退出时发 FINISHED
+        // 只在 spawn 本身失败时才手动发 ERROR + FINISHED
         if let Err(e) = result {
             let _ = app_clone.emit(
                 "rpa-event",
                 json!({ "event_type": "ERROR", "data": { "message": e } }),
             );
+            // spawn 失败才需要手动重置
+            let engine_state = app_clone.state::<EngineState>();
+            let mut running = engine_state.running.lock().unwrap();
+            *running = false;
+            let _ = app_clone.emit(
+                "rpa-event",
+                json!({ "event_type": "FINISHED", "data": { "code": -1 } }),
+            );
         }
-
-        let _ = app_clone.emit(
-            "rpa-event",
-            json!({ "event_type": "FINISHED", "data": { "code": null } }),
-        );
     });
 
     Ok("任务已部署到执行引擎".to_string())
