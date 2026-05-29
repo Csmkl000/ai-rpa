@@ -19,7 +19,7 @@ export function MainPanel() {
   const currentWorkflow = useWorkflowStore((s) => s.currentWorkflow);
   const { error, clearError, captchaStepId, continueAfterCaptcha } = useEngine();
   const addStep = useWorkflowStore((s) => s.addStep);
-  const { isRecording, recordedSteps, startRecording, stopRecording, addRecordedToWorkflow } = useRecorder();
+  const { isRecording, startRecording, stopRecording } = useRecorder();
   const [recordUrl, setRecordUrl] = useState("https://");
   const [showRecordInput, setShowRecordInput] = useState(false);
 
@@ -41,10 +41,10 @@ export function MainPanel() {
         {/* 录制 */}
         {isRecording ? (
           <button
-            onClick={() => { stopRecording(); addRecordedToWorkflow(); }}
+            onClick={stopRecording}
             className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white rounded text-xs font-medium animate-pulse"
           >
-            ⏹ 停止录制 ({recordedSteps.length})
+            ⏹ 停止录制
           </button>
         ) : showRecordInput ? (
           <div className="flex gap-1">

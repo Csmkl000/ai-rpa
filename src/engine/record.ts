@@ -1,31 +1,26 @@
 // 指南 5: 智能录制引擎
-// 使用 Stagehand 打开浏览器（不需要 API Key）
+// 独立进程: 打开浏览器 → 注入脚本 → 保持存活直到收到停止信号
 
-import { createStagehand } from "./stagehand/client";
 import { emit } from "./protocol/messages";
-import { writeFileSync } from "fs";
+import { writeFileSync, readFileSync, existsSync, unlinkSync } from "fs";
 import { randomUUID } from "crypto";
+import { tmpdir } from "os";
+import { join } from "path";
 
-declare global {
-  interface Window {
-    __RECORDED_ACTIONS__?: Array<{ instruction: string; ts: number }>;
-  }
-}
+const SIGNAL_FILE = join(tmpdir(), "ai-rpa-record-stop.signal");
 
 function parseArgs() {
   const args = process.argv.slice(2);
-  let url = "", outputFile = "", headless = "false";
+  let url = "", outputFile = "";
   for (let i = 0; i < args.length; i++) {
     const next = args[i + 1];
     switch (args[i]) {
       case "--url": url = next; i++; break;
       case "--output": outputFile = next; i++; break;
-      case "--headless": headless = next; i++; break;
       default: i++; break;
     }
   }
-  // 默认有头浏览器（录制必须看到浏览器）
-  return { url, outputFile, headless: headless === "true" };
+  return { url, outputFile };
 }
 
 const RECORD_SCRIPT = `
@@ -82,23 +77,28 @@ const RECORD_SCRIPT = `
 `;
 
 async function runRecorder() {
-  const { url, outputFile, headless } = parseArgs();
-  console.log(`[RECORD] 启动录制, url=${url}, headless=${headless}`);
+  const { url, outputFile } = parseArgs();
+  console.log(`[RECORD] 启动录制, url=${url}`);
 
-  // 用 Stagehand 打开浏览器，recordMode 跳过 LLM 初始化
+  // 用 Stagehand 打开浏览器
+  const { createStagehand } = require("./stagehand/client");
   const stagehand = await createStagehand({
     cacheDir: "/tmp/stagehand-record-cache",
-    headless,
+    headless: false,
     recordMode: true,
   });
 
-  const page = stagehand.context.pages()[0];
+  const pages = stagehand.context.pages();
+  const page = pages[0];
   if (!page) {
     console.error("[RECORD] 没有可用的页面");
     process.exit(1);
   }
 
-  await page.goto(url);
+  // 导航
+  if (url && url !== "about:blank") {
+    await page.goto(url);
+  }
   await new Promise(r => setTimeout(r, 2000));
 
   // 注入录制脚本
@@ -112,11 +112,13 @@ async function runRecorder() {
 
   emit("ENGINE_BOOT", { message: "录制已启动，请在浏览器中操作", url });
 
-  // 轮询
+  // 轮询录制结果
   const actions: any[] = [];
   let lastCount = 0;
+  let running = true;
 
   const poll = setInterval(async () => {
+    if (!running) return;
     try {
       const result = await page.evaluate(() => {
         return JSON.stringify((window as any).__RECORDED_ACTIONS__ || []);
@@ -130,20 +132,37 @@ async function runRecorder() {
         }
         lastCount = current.length;
       }
-    } catch {}
+    } catch {
+      // 页面可能正在导航，忽略
+    }
   }, 500);
 
-  // 等待退出
+  // 等待停止信号（三种方式）
   await new Promise<void>((resolve) => {
-    process.on("SIGTERM", () => resolve());
-    process.on("SIGINT", () => resolve());
+    // 方式1: stdin
     process.stdin.on("data", (data) => {
-      if (data.toString().trim() === "stop") resolve();
+      if (data.toString().trim() === "stop") { running = false; resolve(); }
     });
+
+    // 方式2: 进程信号
+    process.on("SIGTERM", () => { running = false; resolve(); });
+    process.on("SIGINT", () => { running = false; resolve(); });
+
+    // 方式3: 信号文件
+    try { unlinkSync(SIGNAL_FILE); } catch {}
+    const pollFile = setInterval(() => {
+      if (existsSync(SIGNAL_FILE)) {
+        try { unlinkSync(SIGNAL_FILE); } catch {}
+        clearInterval(pollFile);
+        running = false;
+        resolve();
+      }
+    }, 500);
   });
 
   clearInterval(poll);
 
+  // 保存结果
   const mappedActions = actions.map((a) => ({
     id: randomUUID(),
     type: "ACT",
@@ -157,7 +176,8 @@ async function runRecorder() {
   console.log(`[RECORD_DONE] 录制完成，共 ${mappedActions.length} 步`);
   console.log(`[RECORD_DONE] ${JSON.stringify(finalResult)}`);
 
-  await stagehand.close();
+  // 关闭浏览器
+  try { await stagehand.close(); } catch {}
   process.exit(0);
 }
 

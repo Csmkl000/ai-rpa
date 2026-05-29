@@ -86,16 +86,24 @@ pub async fn start_recording(
     Ok("录制已启动".to_string())
 }
 
-/// 停止录制
+/// 停止录制（通过信号文件通知进程优雅退出）
 #[tauri::command]
 pub fn stop_recording() -> Result<String, String> {
+    // 写信号文件通知录制进程停止
+    let signal_file = std::env::temp_dir().join("ai-rpa-record-stop.signal");
+    std::fs::write(&signal_file, "stop").map_err(|e| e.to_string())?;
+
+    // 等待进程退出（最多 5 秒）
     unsafe {
         if let Some(mut child) = RECORD_CHILD.take() {
-            let _ = child.kill();
             let _ = child.wait();
         }
     }
 
+    // 清理信号文件
+    let _ = std::fs::remove_file(&signal_file);
+
+    // 读取录制结果
     let output_file = std::env::temp_dir().join("ai-rpa-recording.json");
     if output_file.exists() {
         let content = std::fs::read_to_string(&output_file)
