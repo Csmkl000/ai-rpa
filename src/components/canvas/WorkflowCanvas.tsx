@@ -42,7 +42,8 @@ const TYPE_TO_NODE: Record<string, string> = {
 };
 
 function buildFlowData(
-  steps: any[],
+  // [Refactor: steps 类型从 any[] 改为 WorkflowStep[] by Claude]
+  steps: import("../../types/workflow").WorkflowStep[],
   nodeStatuses: Record<string, string>,
   onUpdate: (id: string, updates: Record<string, unknown>) => void,
   onRemove: (id: string) => void

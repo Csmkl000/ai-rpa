@@ -3,6 +3,8 @@ import { emit } from "../protocol/messages";
 import { existsSync, unlinkSync, statSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
+// [Refactor: page 类型从 any 改为 Page by Claude]
+import type { Page } from "@browserbasehq/stagehand";
 
 const SIGNAL_FILE = join(tmpdir(), "ai-rpa-continue.signal");
 
@@ -20,10 +22,11 @@ const CAPTCHA_KEYWORDS = [
   "双重验证",
 ];
 
-export async function detectCaptcha(page: any): Promise<boolean> {
+// [Refactor: 用 evaluate 替代 content()，适配 Stagehand Page 类型 by Claude]
+export async function detectCaptcha(page: Page): Promise<boolean> {
   try {
-    const content = await page.content();
-    const lower = content.toLowerCase();
+    const content = await page.evaluate(() => document.documentElement.outerHTML);
+    const lower = (content as string).toLowerCase();
     return CAPTCHA_KEYWORDS.some((kw) => lower.includes(kw));
   } catch {
     return false;

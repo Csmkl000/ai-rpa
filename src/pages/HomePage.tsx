@@ -6,7 +6,8 @@ export function HomePage() {
   const { workflows, createNewWorkflow, deleteWorkflow, setCurrentWorkflow } = useWorkflow();
   const setPage = useAppStore((s) => s.setPage);
 
-  const handleOpen = (wf: any) => {
+  // [Refactor: wf 类型从 any 改为 Workflow by Claude]
+  const handleOpen = (wf: import("../types/workflow").Workflow) => {
     setCurrentWorkflow(wf);
     setPage("workflow");
   };
@@ -69,7 +70,7 @@ export function HomePage() {
                 </div>
                 {wf.steps && wf.steps.length > 0 && (
                   <div className="mt-3 flex flex-wrap gap-1">
-                    {wf.steps.slice(0, 4).map((s: any, i: number) => (
+                    {wf.steps.slice(0, 4).map((s: import("../types/workflow").WorkflowStep, i: number) => (
                       <span key={i} className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded">
                         {s.label || s.type}
                       </span>

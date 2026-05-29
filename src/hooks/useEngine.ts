@@ -124,8 +124,9 @@ export function useEngine() {
         workflowId: currentWorkflow.id ?? 0,
       });
       logger.success(MOD, "任务已部署到执行引擎");
-    } catch (err: any) {
-      const msg = typeof err === "string" ? err : err?.message || String(err);
+    // [Refactor: err 类型从 any 改为 unknown by Claude]
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
       logger.error(MOD, `启动失败: ${msg}`);
       setError(msg);
       setRunning(false);
@@ -138,8 +139,8 @@ export function useEngine() {
       await invoke("stop_workflow");
       setRunning(false);
       logger.info(MOD, "停止信号已发送");
-    } catch (err: any) {
-      logger.error(MOD, `停止失败: ${err}`);
+    } catch (err: unknown) {
+      logger.error(MOD, `停止失败: ${err instanceof Error ? err.message : String(err)}`);
     }
   }, [setRunning]);
 

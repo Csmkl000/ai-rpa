@@ -15,8 +15,9 @@ export async function executeAct(stagehand: Stagehand, step: ActStep): Promise<v
     const result = await stagehand.act(step.instruction);
     emitStep("ACTION_COMPLETED", step.id, { instruction: step.instruction, result });
     emitStep("STEP_COMPLETE", step.id, { step: "ACT" });
-  } catch (err: any) {
-    const msg = err?.message || String(err);
+  } // [Refactor: err 类型从 any 改为 unknown by Claude]
+  catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
 
     // 指南 5: 检测是否因验证码卡住
     try {

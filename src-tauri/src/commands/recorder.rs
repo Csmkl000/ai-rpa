@@ -1,8 +1,10 @@
 use crate::process::EngineEvent;
 use serde_json::json;
+use std::sync::Mutex;
 use tauri::{AppHandle, Emitter, Manager};
 
-static mut RECORD_CHILD: Option<std::process::Child> = None;
+// [Refactor: static mut 改为 Mutex 消除 unsafe by Claude]
+static RECORD_CHILD: Mutex<Option<std::process::Child>> = Mutex::new(None);
 
 /// 指南 5: 启动智能录制模式（不需要 API Key，纯浏览器操作）
 #[tauri::command]
@@ -48,7 +50,6 @@ pub async fn start_recording(
                 let event = if line.contains("[RECORD_DONE]") {
                     EngineEvent { event_type: "RECORD_DONE".into(), data: json!({ "log": line }) }
                 } else if line.contains("[RECORDER]") {
-                    // 从日志中提取录制的指令
                     let instruction = line.split("[RECORDER] ").nth(1).unwrap_or("").trim();
                     EngineEvent {
                         event_type: "RECORDED_ACTION".into(),
@@ -79,9 +80,7 @@ pub async fn start_recording(
     });
 
     // 保存 child 引用以便后续停止
-    unsafe {
-        RECORD_CHILD = Some(child);
-    }
+    *RECORD_CHILD.lock().unwrap() = Some(child);
 
     Ok("录制已启动".to_string())
 }
@@ -89,21 +88,17 @@ pub async fn start_recording(
 /// 停止录制（通过信号文件通知进程优雅退出）
 #[tauri::command]
 pub fn stop_recording() -> Result<String, String> {
-    // 写信号文件通知录制进程停止
     let signal_file = std::env::temp_dir().join("ai-rpa-record-stop.signal");
     std::fs::write(&signal_file, "stop").map_err(|e| e.to_string())?;
 
-    // 等待进程退出（最多 5 秒）
-    unsafe {
-        if let Some(mut child) = RECORD_CHILD.take() {
-            let _ = child.wait();
-        }
+    // 等待进程退出
+    let mut guard = RECORD_CHILD.lock().unwrap();
+    if let Some(mut child) = guard.take() {
+        let _ = child.wait();
     }
 
-    // 清理信号文件
     let _ = std::fs::remove_file(&signal_file);
 
-    // 读取录制结果
     let output_file = std::env::temp_dir().join("ai-rpa-recording.json");
     if output_file.exists() {
         let content = std::fs::read_to_string(&output_file)

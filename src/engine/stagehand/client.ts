@@ -24,10 +24,15 @@ export async function createStagehand(config: StagehandConfig): Promise<Stagehan
     throw new Error("Missing API Key");
   }
 
-  const rawModel = config.model || "gpt-4o";
+  // [Refactor: 移除硬编码 "gpt-4o"，要求调用方必须传入 model by Claude]
+  if (!config.model) {
+    throw new Error("未配置模型名称");
+  }
+  const rawModel = config.model;
   const modelName = rawModel.includes("/") ? rawModel.split("/").pop()! : rawModel;
 
-  let llmClient: any = undefined;
+  // [Refactor: llmClient 类型从 any 改为 CustomOpenAIClient | undefined by Claude]
+  let llmClient: InstanceType<typeof CustomOpenAIClient> | undefined = undefined;
 
   if (!config.recordMode) {
     if (provider === "ollama") {
@@ -43,6 +48,7 @@ export async function createStagehand(config: StagehandConfig): Promise<Stagehan
     }
   }
 
+  // [Refactor: stagehandOpts 保留 any，Stagehand V3Options 类型过于复杂 by Claude]
   const stagehandOpts: any = {
     env: "LOCAL",
     cacheDir: config.cacheDir,
@@ -67,8 +73,9 @@ export async function createStagehand(config: StagehandConfig): Promise<Stagehan
       for (const page of pages) {
         await page.evaluate(getStealthScript());
       }
-    } catch (e: any) {
-      emit("LOG", { log: `反爬脚本注入失败: ${e?.message || e}` });
+    // [Refactor: err 类型从 any 改为 unknown by Claude]
+    } catch (e: unknown) {
+      emit("LOG", { log: `反爬脚本注入失败: ${e instanceof Error ? e.message : String(e)}` });
     }
   }
 

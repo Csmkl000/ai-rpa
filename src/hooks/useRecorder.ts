@@ -15,8 +15,9 @@ export function useRecorder() {
     setIsRecording(true);
     try {
       await invoke("start_recording", { url, headless: false });
-    } catch (err: any) {
-      logger.error(MOD, `启动录制失败: ${err}`);
+    } // [Refactor: err 类型从 any 改为 unknown by Claude]
+    catch (err: unknown) {
+      logger.error(MOD, `启动录制失败: ${err instanceof Error ? err.message : String(err)}`);
       setIsRecording(false);
     }
   }, []);
@@ -43,8 +44,9 @@ export function useRecorder() {
       } else {
         logger.warn(MOD, "未录制到任何操作");
       }
-    } catch (err: any) {
-      logger.error(MOD, `停止录制失败: ${err}`);
+    } // [Refactor: err 类型从 any 改为 unknown by Claude]
+    catch (err: unknown) {
+      logger.error(MOD, `停止录制失败: ${err instanceof Error ? err.message : String(err)}`);
     }
   }, [addStep]);
 

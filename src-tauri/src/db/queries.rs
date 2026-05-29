@@ -10,16 +10,7 @@ pub struct Workflow {
     pub updated_at: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct RunLog {
-    pub id: i64,
-    pub workflow_id: i64,
-    pub status: String,
-    pub started_at: String,
-    pub finished_at: Option<String>,
-    pub result_json: Option<String>,
-    pub error_message: Option<String>,
-}
+// [Refactor: 删除未使用的 RunLog struct by Claude]
 
 pub fn save_workflow(conn: &Connection, name: &str, steps_json: &str) -> Result<i64, String> {
     conn.execute(
@@ -65,23 +56,7 @@ pub fn delete_workflow(conn: &Connection, id: i64) -> Result<(), String> {
     Ok(())
 }
 
-pub fn create_run_log(conn: &Connection, workflow_id: i64) -> Result<i64, String> {
-    conn.execute(
-        "INSERT INTO run_logs (workflow_id, status) VALUES (?1, 'running')",
-        rusqlite::params![workflow_id],
-    )
-    .map_err(|e| e.to_string())?;
-    Ok(conn.last_insert_rowid())
-}
-
-pub fn finish_run_log(conn: &Connection, log_id: i64, status: &str, result: Option<&str>, error: Option<&str>) -> Result<(), String> {
-    conn.execute(
-        "UPDATE run_logs SET status = ?1, finished_at = datetime('now'), result_json = ?2, error_message = ?3 WHERE id = ?4",
-        rusqlite::params![status, result, error, log_id],
-    )
-    .map_err(|e| e.to_string())?;
-    Ok(())
-}
+// [Refactor: 删除未使用的 create_run_log, finish_run_log by Claude]
 
 pub fn get_setting(conn: &Connection, key: &str) -> Result<Option<String>, String> {
     let mut stmt = conn

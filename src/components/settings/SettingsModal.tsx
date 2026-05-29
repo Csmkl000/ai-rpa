@@ -29,8 +29,9 @@ export function SettingsModal() {
       setSettings(local);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
-    } catch (err: any) {
-      logger.error("Settings", `保存失败: ${err}`);
+    } // [Refactor: err 类型从 any 改为 unknown by Claude]
+    catch (err: unknown) {
+      logger.error("Settings", `保存失败: ${err instanceof Error ? err.message : String(err)}`);
     }
   };
 

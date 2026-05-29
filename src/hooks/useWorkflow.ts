@@ -33,8 +33,9 @@ export function useWorkflow() {
 
       setWorkflows(parsed);
       logger.info(MOD, `成功加载 ${parsed.length} 个工作流`);
-    } catch (err: any) {
-      logger.error(MOD, "加载工作流失败:", err);
+    } // [Refactor: err 类型从 any 改为 unknown by Claude]
+    catch (err: unknown) {
+      logger.error(MOD, `加载工作流失败: ${err instanceof Error ? err.message : String(err)}`);
     }
   }, [setWorkflows]);
 
@@ -55,8 +56,9 @@ export function useWorkflow() {
       setCurrentWorkflow({ ...currentWorkflow, id });
       logger.info(MOD, `保存成功, id=${id}`);
       await loadWorkflows();
-    } catch (err: any) {
-      logger.error(MOD, "保存失败:", err);
+    } // [Refactor: err 类型从 any 改为 unknown by Claude]
+    catch (err: unknown) {
+      logger.error(MOD, `保存失败: ${err instanceof Error ? err.message : String(err)}`);
     }
   }, [currentWorkflow, setCurrentWorkflow, loadWorkflows]);
 
@@ -70,8 +72,9 @@ export function useWorkflow() {
           setCurrentWorkflow(null);
         }
         logger.info(MOD, "删除成功");
-      } catch (err: any) {
-        logger.error(MOD, "删除失败:", err);
+      } // [Refactor: err 类型从 any 改为 unknown by Claude]
+    catch (err: unknown) {
+        logger.error(MOD, `删除失败: ${err instanceof Error ? err.message : String(err)}`);
       }
     },
     [currentWorkflow, loadWorkflows, setCurrentWorkflow]

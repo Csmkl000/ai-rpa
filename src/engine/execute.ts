@@ -1,12 +1,12 @@
 import { createStagehand } from "./stagehand/client";
+import type { Stagehand } from "@browserbasehq/stagehand";
 import { executeGoto } from "./actions/goto";
 import { executeAct } from "./actions/act";
 import { executeExtract } from "./actions/extract";
 import { executeObserve } from "./actions/observe";
 import { executeAgent } from "./actions/agent";
 import { executeCondition } from "./actions/condition";
-import { emit, emitError, emitData, emitStep } from "./protocol/messages";
-import { generateDynamicSchema } from "./utils/schema";
+import { emit, emitError, emitStep } from "./protocol/messages";
 
 interface WorkflowStep {
   id: string;
@@ -22,6 +22,8 @@ interface WorkflowStep {
   falseStepId?: string;
   maxIterations?: number;
   body?: WorkflowStep[];
+  // [Refactor: 用字段替代 globalThis hack by Claude]
+  _conditionResult?: boolean;
 }
 
 interface Workflow {
@@ -64,7 +66,8 @@ function parseArgs() {
 }
 
 /** 执行单个步骤 */
-async function executeStep(stagehand: any, step: WorkflowStep): Promise<void> {
+// [Refactor: stagehand 类型从 any 改为 Stagehand by Claude]
+async function executeStep(stagehand: Stagehand, step: WorkflowStep): Promise<void> {
   switch (step.type) {
     case "GOTO":
       await executeGoto(stagehand, { type: "GOTO", id: step.id, value: step.value! });
@@ -86,11 +89,11 @@ async function executeStep(stagehand: any, step: WorkflowStep): Promise<void> {
       break;
 
     case "CONDITION": {
+      // [Refactor: 结果存到 step 对象，替代 globalThis by Claude]
       const result = await executeCondition(stagehand, {
         type: "CONDITION", id: step.id, condition: step.condition!,
       });
-      (globalThis as any).__conditionResults = (globalThis as any).__conditionResults || {};
-      (globalThis as any).__conditionResults[step.id] = result;
+      step._conditionResult = result;
       break;
     }
 
@@ -101,7 +104,7 @@ async function executeStep(stagehand: any, step: WorkflowStep): Promise<void> {
       break;
 
     default:
-      emitError(`未知的步骤类型: ${(step as any).type}`, step.id);
+      emitError(`未知的步骤类型: ${step.type}`, step.id);
   }
 }
 

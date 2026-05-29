@@ -3,13 +3,21 @@ use serde_json::json;
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_shell::ShellExt;
 
+// [Refactor: 添加日志 rotation，超过 5MB 自动轮转 by Claude]
 macro_rules! engine_log {
     ($($arg:tt)*) => {
         let msg = format!($($arg)*);
         eprintln!("[ENGINE_SPAWN] {}", msg);
+        let log_path = std::env::temp_dir().join("ai-rpa-engine.log");
+        // 超过 5MB 时轮转
+        if let Ok(meta) = std::fs::metadata(&log_path) {
+            if meta.len() > 5 * 1024 * 1024 {
+                let _ = std::fs::rename(&log_path, std::env::temp_dir().join("ai-rpa-engine.log.old"));
+            }
+        }
         if let Ok(mut f) = std::fs::OpenOptions::new()
             .create(true).append(true)
-            .open(std::env::temp_dir().join("ai-rpa-engine.log"))
+            .open(&log_path)
         {
             use std::io::Write;
             let _ = writeln!(f, "[{}] {}", chrono_now(), msg);
@@ -177,11 +185,25 @@ fn spawn_io_threads(app: AppHandle, mut child: std::process::Child) {
         });
     }
 
+    // [Refactor: 添加 5 分钟超时保护 by Claude]
     let app_fin = app.clone();
     std::thread::spawn(move || {
-        let status = child.wait();
-        let code = status.map(|s| s.code()).unwrap_or(Some(-1));
-        engine_log!("进程退出, code={:?}", code);
+        let timeout = std::time::Duration::from_secs(300);
+        let start = std::time::Instant::now();
+        let code = loop {
+            match child.try_wait() {
+                Ok(Some(status)) => break status.code().unwrap_or(-1),
+                Ok(None) if start.elapsed() < timeout => {
+                    std::thread::sleep(std::time::Duration::from_secs(1));
+                }
+                _ => {
+                    engine_log!("引擎超时（5分钟），强制终止");
+                    let _ = child.kill();
+                    break -1;
+                }
+            }
+        };
+        engine_log!("进程退出, code={}", code);
         let _ = app_fin.emit("rpa-event", EngineEvent {
             event_type: "FINISHED".into(),
             data: json!({ "code": code }),
