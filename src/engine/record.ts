@@ -1,10 +1,16 @@
 // 指南 5: 智能录制引擎
+import { createStagehand } from "./stagehand/client";
 import { emit } from "./protocol/messages";
 import { writeFileSync } from "fs";
 import { randomUUID } from "crypto";
 
-// Playwright 通过 Stagehand 依赖可用
-const { chromium } = require("playwright");
+declare global {
+  interface Window {
+    __RECORDED_ACTIONS__?: Array<{ instruction: string; ts: number }>;
+    __RECORDING_ACTIVE__?: boolean;
+    __STAGEHAND_RECORDER__?: boolean;
+  }
+}
 
 function parseArgs() {
   const args = process.argv.slice(2);
@@ -32,75 +38,84 @@ const RECORD_SCRIPT = `
 
   function getElementInfo(el) {
     if (!el || !el.tagName) return { tag: 'unknown', text: '' };
-    const tag = el.tagName.toLowerCase();
-    const text = (el.textContent || '').trim().replace(/\\s+/g, ' ').slice(0, 60);
-    const placeholder = el.getAttribute('placeholder') || '';
-    const ariaLabel = el.getAttribute('aria-label') || '';
-    const type = el.getAttribute('type') || '';
-    const role = el.getAttribute('role') || '';
-    return { tag, text, placeholder, ariaLabel, type, role };
+    var tag = el.tagName.toLowerCase();
+    var text = (el.textContent || '').trim().replace(/\\s+/g, ' ').slice(0, 60);
+    var placeholder = el.getAttribute('placeholder') || '';
+    var ariaLabel = el.getAttribute('aria-label') || '';
+    var type = el.getAttribute('type') || '';
+    var role = el.getAttribute('role') || '';
+    return { tag: tag, text: text, placeholder: placeholder, ariaLabel: ariaLabel, type: type, role: role };
   }
 
   function toInstruction(info) {
-    const { tag, text, placeholder, ariaLabel, type, role } = info;
-    const label = ariaLabel || text || placeholder || '';
-    if (tag === 'input' || tag === 'textarea') {
-      if (type === 'search' || placeholder.includes('搜索')) return '在搜索框输入';
-      return placeholder ? '在"' + placeholder + '"中输入' : '在输入框中输入';
+    var label = info.ariaLabel || info.text || info.placeholder || '';
+    if (info.tag === 'input' || info.tag === 'textarea') {
+      if (info.type === 'search' || info.placeholder.indexOf('搜索') >= 0) return '在搜索框输入';
+      return info.placeholder ? '在"' + info.placeholder + '"中输入' : '在输入框中输入';
     }
-    if (tag === 'select') return '选择下拉选项';
-    if (tag === 'a') return label ? '点击"' + label.slice(0, 20) + '"链接' : '点击链接';
-    if (tag === 'button' || role === 'button' || type === 'button' || type === 'submit') {
+    if (info.tag === 'select') return '选择下拉选项';
+    if (info.tag === 'a') return label ? '点击"' + label.slice(0, 20) + '"链接' : '点击链接';
+    if (info.tag === 'button' || info.role === 'button' || info.type === 'button' || info.type === 'submit') {
       return label ? '点击"' + label.slice(0, 20) + '"按钮' : '点击按钮';
     }
-    if (tag === 'img') return '点击图片';
     if (label) return '点击"' + label.slice(0, 20) + '"';
     return '点击元素';
   }
 
   document.addEventListener('click', function(e) {
     if (!window.__RECORDING_ACTIVE__) return;
-    const el = e.target;
-    const info = getElementInfo(el);
-    const instruction = toInstruction(info);
+    var el = e.target;
+    var info = getElementInfo(el);
+    var instruction = toInstruction(info);
     try {
-      const orig = el.style.outline;
+      var orig = el.style.outline;
       el.style.outline = '3px solid #22c55e';
-      setTimeout(() => { el.style.outline = orig; }, 800);
-    } catch {}
-    window.__RECORDED_ACTIONS__.push({
-      instruction: instruction,
-      timestamp: Date.now(),
-    });
-    console.log('[RECORDER] ' + instruction);
+      setTimeout(function() { el.style.outline = orig; }, 800);
+    } catch(ex) {}
+    window.__RECORDED_ACTIONS__.push({ instruction: instruction, ts: Date.now() });
   }, true);
 
   document.addEventListener('submit', function(e) {
     if (!window.__RECORDING_ACTIVE__) return;
-    window.__RECORDED_ACTIONS__.push({ instruction: '提交表单', timestamp: Date.now() });
+    window.__RECORDED_ACTIONS__.push({ instruction: '提交表单', ts: Date.now() });
   }, true);
-
-  console.log('[RECORDER] 录制脚本已加载');
 })();
 `;
 
 async function runRecorder() {
-  const { url, outputFile } = parseArgs();
+  const { url, outputFile, apiKey, model, baseURL, proxyUrl } = parseArgs();
 
   console.log(`[RECORD] 启动录制, url=${url}`);
 
-  // 直接用 Playwright 打开浏览器，不经过 Stagehand
-  const browser = await chromium.launch({ headless: false });
-  const context = await browser.newContext();
-  const page = await context.newPage();
+  const stagehand = await createStagehand({
+    cacheDir: "/tmp/stagehand-record-cache",
+    apiKey,
+    model,
+    baseURL,
+    proxyUrl,
+    headless: false,
+  });
 
-  await page.goto(url || "about:blank", { waitUntil: "domcontentloaded" });
-  await page.waitForTimeout(1500);
+  // 使用 Stagehand 的默认 page（已由 init 打开）
+  const page = stagehand.context.pages()[0];
+  if (!page) {
+    console.error("[RECORD] 没有可用的页面");
+    process.exit(1);
+  }
+
+  // 导航
+  await page.goto(url);
+  await new Promise(r => setTimeout(r, 2000));
 
   // 注入录制脚本
   console.log(`[RECORD] 注入录制脚本...`);
-  await page.evaluate(RECORD_SCRIPT);
-  console.log(`[RECORD] 脚本注入完成`);
+  try {
+    await page.evaluate(RECORD_SCRIPT);
+    console.log(`[RECORD] 脚本注入成功`);
+  } catch (e: any) {
+    console.error(`[RECORD] 脚本注入失败: ${e.message}`);
+    process.exit(1);
+  }
 
   emit("ENGINE_BOOT", { message: "录制模式已启动，请在浏览器中操作", url });
   console.log(`[RECORD] 请在浏览器中操作...`);
@@ -111,8 +126,10 @@ async function runRecorder() {
 
   const poll = setInterval(async () => {
     try {
-      const raw = await page.evaluate("JSON.stringify(window.__RECORDED_ACTIONS__ || [])");
-      const current: any[] = JSON.parse(raw);
+      const result = await page.evaluate(() => {
+        return JSON.stringify(window.__RECORDED_ACTIONS__ || []);
+      });
+      const current: any[] = JSON.parse(result);
       if (current.length > lastCount) {
         const newActions = current.slice(lastCount);
         for (const action of newActions) {
@@ -121,10 +138,12 @@ async function runRecorder() {
         }
         lastCount = current.length;
       }
-    } catch {}
+    } catch (e: any) {
+      // 页面导航中，忽略
+    }
   }, 500);
 
-  // 等待退出信号
+  // 等待退出
   await new Promise<void>((resolve) => {
     process.on("SIGTERM", () => resolve());
     process.on("SIGINT", () => resolve());
@@ -151,7 +170,7 @@ async function runRecorder() {
   console.log(`[RECORD_DONE] 录制完成，共 ${mappedActions.length} 步`);
   console.log(`[RECORD_DONE] ${JSON.stringify(finalResult)}`);
 
-  await browser.close();
+  await stagehand.close();
   process.exit(0);
 }
 
