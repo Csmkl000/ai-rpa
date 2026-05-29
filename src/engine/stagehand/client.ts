@@ -74,7 +74,9 @@ export async function createStagehand(config: StagehandConfig): Promise<Stagehan
     for (const page of pages) {
       await page.evaluate(getStealthScript());
     }
-  } catch {}
+  } catch (e: any) {
+    emit("LOG", { log: `反爬脚本注入失败: ${e?.message || e}` });
+  }
 
   emit("ENGINE_BOOT", {
     message: "Stagehand v3 CDP 引擎初始化完毕",

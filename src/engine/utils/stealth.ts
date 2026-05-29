@@ -5,9 +5,17 @@ export const STEALTH_SCRIPTS = [
   // 隐藏 webdriver 标志
   `Object.defineProperty(navigator, 'webdriver', { get: () => undefined });`,
 
-  // 伪造 plugins（正常浏览器有 plugins，自动化浏览器通常为空）
+  // #14: 伪造 plugins（模拟真实 Plugin 对象结构）
   `Object.defineProperty(navigator, 'plugins', {
-    get: () => [1, 2, 3, 4, 5],
+    get: () => {
+      const plugins = [
+        { name: 'Chrome PDF Plugin', description: 'Portable Document Format', filename: 'internal-pdf-viewer' },
+        { name: 'Chrome PDF Viewer', description: '', filename: 'mhjfbmdgcfjbbpaeojofohoefgiehjai' },
+        { name: 'Native Client', description: '', filename: 'internal-nacl-plugin' },
+      ];
+      plugins.length = 3;
+      return plugins;
+    },
   });`,
 
   // 伪造 languages
@@ -16,7 +24,7 @@ export const STEALTH_SCRIPTS = [
   });`,
 
   // 隐藏 Chrome 自动化特征
-  `window.chrome = { runtime: {} };`,
+  `window.chrome = { runtime: {}, loadTimes: function(){}, csi: function(){} };`,
 
   // 隐藏 automation 相关属性
   `delete window.cdc_adoQpoasnfa76pfcZLmcfl_Array;
@@ -29,6 +37,12 @@ export const STEALTH_SCRIPTS = [
      parameters.name === 'notifications'
        ? Promise.resolve({ state: Notification.permission })
        : originalQuery(parameters);`,
+
+  // 伪造 hardwareConcurrency
+  `Object.defineProperty(navigator, 'hardwareConcurrency', { get: () => 8 });`,
+
+  // 伪造 deviceMemory
+  `Object.defineProperty(navigator, 'deviceMemory', { get: () => 8 });`,
 ];
 
 export function getStealthScript(): string {

@@ -1,6 +1,7 @@
 // 指南 5: 智能录制引擎
 // 独立进程: 打开浏览器 → 注入录制脚本 → 用户操作 → 输出语义指令
 
+import { randomUUID } from "crypto";
 import { createStagehand } from "./stagehand/client";
 import { getRecordScript, getStartRecordingScript, getGetActionsScript } from "./utils/recorder";
 import { emit } from "./protocol/messages";
@@ -69,7 +70,8 @@ async function runRecorder() {
   const poll = setInterval(async () => {
     try {
       const raw = await page.evaluate(getGetActionsScript());
-      const current = JSON.parse(raw as string);
+      if (typeof raw !== "string") return;
+      const current: any[] = JSON.parse(raw);
 
       if (current.length > lastCount) {
         const newActions = current.slice(lastCount);

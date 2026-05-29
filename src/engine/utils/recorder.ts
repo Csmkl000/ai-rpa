@@ -95,10 +95,6 @@ export function getStartRecordingScript(): string {
   return "window.__RECORDING_ACTIVE__ = true; window.__RECORDED_ACTIONS__ = [];";
 }
 
-export function getStopRecordingScript(): string {
-  return "window.__RECORDING_ACTIVE__ = false;";
-}
-
 export function getGetActionsScript(): string {
   return "JSON.stringify(window.__RECORDED_ACTIONS__ || [])";
 }

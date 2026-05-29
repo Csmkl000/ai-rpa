@@ -1,8 +1,10 @@
 // 指南 5: 验证码检测与人工介入握手
 import { emit } from "../protocol/messages";
-import { watch } from "fs";
+import { existsSync, unlinkSync, statSync } from "fs";
+import { tmpdir } from "os";
+import { join } from "path";
 
-const SIGNAL_FILE = require("os").tmpdir() + "/ai-rpa-continue.signal";
+const SIGNAL_FILE = join(tmpdir(), "ai-rpa-continue.signal");
 
 // 检测页面是否包含验证码特征
 const CAPTCHA_KEYWORDS = [
@@ -34,24 +36,28 @@ export function waitForUserContinue(stepId: string): Promise<void> {
     emit("CAPTCHA_PAUSE", { step_id: stepId });
 
     // 清除旧信号
-    try { require("fs").unlinkSync(SIGNAL_FILE); } catch {}
+    try { unlinkSync(SIGNAL_FILE); } catch {}
 
-    // 监听信号文件
-    const dir = require("path").dirname(SIGNAL_FILE);
-    const basename = require("path").basename(SIGNAL_FILE);
-    const watcher = watch(dir, (event: string, filename: string | null) => {
-      if (filename === basename) {
-        try {
-          require("fs").unlinkSync(SIGNAL_FILE);
-        } catch {}
-        watcher.close();
-        resolve();
-      }
-    });
+    // #15: 使用轮询代替 fs.watch，更可靠
+    let lastMtime = 0;
+    const poll = setInterval(() => {
+      try {
+        if (existsSync(SIGNAL_FILE)) {
+          const stat = statSync(SIGNAL_FILE);
+          if (stat.mtimeMs > lastMtime) {
+            lastMtime = stat.mtimeMs;
+            // 等文件写入完成
+            clearInterval(poll);
+            try { unlinkSync(SIGNAL_FILE); } catch {}
+            resolve();
+          }
+        }
+      } catch {}
+    }, 500);
 
     // 超时 5 分钟
     setTimeout(() => {
-      watcher.close();
+      clearInterval(poll);
       resolve();
     }, 5 * 60 * 1000);
   });

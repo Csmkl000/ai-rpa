@@ -1,5 +1,5 @@
 import type { Stagehand } from "@browserbasehq/stagehand";
-import { emitStep, emitError } from "../protocol/messages";
+import { emitStep } from "../protocol/messages";
 
 export interface AgentStep {
   type: "AUTONOMOUS_AGENT";
@@ -24,7 +24,7 @@ export async function executeAgent(stagehand: Stagehand, step: AgentStep): Promi
       message: result.message,
     });
   } else {
-    emitError(`智能体任务失败: ${result.message}`, step.id);
-    throw new Error(result.message);
+    // #6: 只 throw 不 emit
+    throw new Error(`智能体任务失败: ${result.message}`);
   }
 }

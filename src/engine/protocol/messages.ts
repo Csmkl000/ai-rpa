@@ -13,6 +13,7 @@ export type EngineEventType =
   | "STEP_COMPLETE"
   | "CAPTCHA_PAUSE"
   | "SCREENSHOT"
+  | "LOG"
   | "ERROR"
   | "EXECUTION_CRASH";
 
@@ -35,6 +36,3 @@ export function emitError(message: string, stepId?: string) {
   console.error(`[ERROR] ${payload}`);
 }
 
-export function emitCaptcha(stepId: string) {
-  console.log(`[CAPTCHA_PAUSE] ${JSON.stringify({ step_id: stepId })}`);
-}

@@ -22,6 +22,3 @@ export function generateDynamicSchema(fields: FieldDef[]): z.ZodObject<any> {
   return z.object(shape);
 }
 
-export function generateArraySchema(fields: FieldDef[]): z.ZodArray<any> {
-  return z.array(generateDynamicSchema(fields));
-}

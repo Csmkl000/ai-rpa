@@ -1,16 +1,16 @@
-import { Stagehand } from "@browserbasehq/stagehand";
 import { createStagehand } from "./stagehand/client";
 import { executeGoto } from "./actions/goto";
 import { executeAct } from "./actions/act";
 import { executeExtract } from "./actions/extract";
 import { executeObserve } from "./actions/observe";
 import { executeAgent } from "./actions/agent";
+import { executeCondition } from "./actions/condition";
 import { emit, emitError, emitData, emitStep } from "./protocol/messages";
 import { generateDynamicSchema } from "./utils/schema";
 
 interface WorkflowStep {
   id: string;
-  type: "GOTO" | "ACT" | "EXTRACT" | "OBSERVE" | "EXTRACT_LOOP" | "AUTONOMOUS_AGENT";
+  type: "GOTO" | "ACT" | "EXTRACT" | "OBSERVE" | "EXTRACT_LOOP" | "AUTONOMOUS_AGENT" | "CONDITION";
   value?: string;
   instruction?: string;
   fields?: Array<{ name: string; type: string }>;
@@ -18,6 +18,9 @@ interface WorkflowStep {
   maxPages?: number;
   task?: string;
   maxSteps?: number;
+  condition?: string;
+  trueStepId?: string;
+  falseStepId?: string;
 }
 
 interface Workflow {
@@ -44,7 +47,17 @@ function parseArgs() {
       case "--model": model = next; i++; break;
       case "--base-url": baseURL = next; i++; break;
       case "--proxy": proxyUrl = next; i++; break;
-      case "--headless": headless = next !== "false"; i++; break;
+      case "--headless":
+        if (next && !next.startsWith("--")) {
+          headless = next !== "false";
+          i++;
+        } else {
+          headless = true;
+        }
+        break;
+      case "--no-headless":
+        headless = false;
+        break;
     }
   }
 
@@ -66,7 +79,7 @@ function parseArgs() {
 }
 
 // 指南 3: 截图推送到前端预览
-async function captureScreenshot(stagehand: Stagehand, stepId: string) {
+async function captureScreenshot(stagehand: any, stepId: string) {
   try {
     const pages = stagehand.context.pages();
     if (pages.length === 0) return;
@@ -74,7 +87,9 @@ async function captureScreenshot(stagehand: Stagehand, stepId: string) {
     const screenshot = await page.screenshot({ type: "jpeg", quality: 50 });
     const base64 = Buffer.from(screenshot).toString("base64");
     emit("SCREENSHOT", { step_id: stepId, image: `data:image/jpeg;base64,${base64}` });
-  } catch {}
+  } catch (e: any) {
+    // 截图失败不影响主流程
+  }
 }
 
 async function runEngine() {
@@ -89,8 +104,35 @@ async function runEngine() {
     headless,
   });
 
+  // 追踪条件分支的跳转目标
+  const stepResults = new Map<string, boolean>();
+
   for (const step of workflow.steps) {
-    // 每步执行后截图推送到前端预览
+    // 检查是否被条件分支跳过
+    const shouldSkip = workflow.steps.some((s) => {
+      if (s.type !== "CONDITION") return false;
+      const condResult = stepResults.get(s.id);
+      if (condResult === true && s.trueStepId === step.id) return false;
+      if (condResult === false && s.falseStepId === step.id) return false;
+      // 如果这个步骤是某个条件的分支目标，但条件还没执行，则跳过
+      if ((s.trueStepId === step.id || s.falseStepId === step.id) && condResult === undefined) return true;
+      return false;
+    });
+
+    // #9: 验证必填字段
+    if (step.type === "GOTO" && !step.value) {
+      emitError("GOTO 步骤缺少 value (URL)", step.id);
+      continue;
+    }
+    if (["ACT", "EXTRACT", "OBSERVE"].includes(step.type) && !step.instruction) {
+      emitError(`${step.type} 步骤缺少 instruction`, step.id);
+      continue;
+    }
+    if (step.type === "CONDITION" && !step.condition) {
+      emitError("CONDITION 步骤缺少 condition", step.id);
+      continue;
+    }
+
     const screenshotAfter = () => captureScreenshot(stagehand, step.id);
 
     switch (step.type) {
@@ -128,14 +170,25 @@ async function runEngine() {
           const schema = generateDynamicSchema(
             (step.fields || []) as Array<{ name: string; type: "string" | "number" }>
           );
-          const data = await stagehand.extract(
-            step.extractInstruction || "提取页面中的数据",
-            schema
-          );
-          emitData(data, step.id);
+          try {
+            const data = await stagehand.extract(
+              step.extractInstruction || "提取页面中的数据",
+              schema
+            );
+            emitData(data, step.id);
+          } catch (e: any) {
+            emitError(`提取失败: ${e?.message}`, step.id);
+            break;
+          }
 
-          // 指南 4.3: observe 扫描下一页元素
-          const actions = await stagehand.observe("查找跳转到下一页或翻页的交互元素");
+          let actions;
+          try {
+            actions = await stagehand.observe("查找跳转到下一页或翻页的交互元素");
+          } catch (e: any) {
+            emitError(`观察页面失败: ${e?.message}`, step.id);
+            break;
+          }
+
           const nextAction = actions.find(
             (a: any) =>
               a.description?.toLowerCase().includes("next") ||
@@ -145,10 +198,11 @@ async function runEngine() {
           );
 
           if (nextAction) {
-            // 指南: 1.5s-3s 随机延时模拟人工，绕过简单反爬
             const sleepTime = Math.floor(Math.random() * 1500) + 1500;
             await new Promise((r) => setTimeout(r, sleepTime));
-            await stagehand.act(`点击 ${nextAction.description || nextAction}`);
+            // #13: 修复 [object Object] 回退
+            const desc = nextAction.description || "下一页";
+            await stagehand.act(`点击 ${desc}`);
             currentPage++;
           } else {
             emit("PAGINATION_FINISHED", {
@@ -159,6 +213,17 @@ async function runEngine() {
             hasNextPage = false;
           }
         }
+        break;
+      }
+
+      case "CONDITION": {
+        const result = await executeCondition(stagehand, {
+          type: "CONDITION",
+          id: step.id,
+          condition: step.condition!,
+        });
+        stepResults.set(step.id, result);
+        await screenshotAfter();
         break;
       }
 
