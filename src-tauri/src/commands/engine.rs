@@ -86,6 +86,12 @@ pub async fn run_workflow(
                 json!({ "event_type": "ERROR", "data": { "message": e } }),
             );
         }
+
+        // 无论成功失败都发 FINISHED，确保前端按钮状态重置
+        let _ = app_clone.emit(
+            "rpa-event",
+            json!({ "event_type": "FINISHED", "data": { "code": null } }),
+        );
     });
 
     Ok("任务已部署到执行引擎".to_string())
