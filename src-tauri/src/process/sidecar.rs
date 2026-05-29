@@ -220,6 +220,11 @@ fn parse_engine_line(line: &str) -> EngineEvent {
         EngineEvent { event_type: "PAGINATION_FINISHED".into(), data: json!({ "log": line }) }
     } else if line.contains("[ENGINE_BOOT]") {
         EngineEvent { event_type: "ENGINE_BOOT".into(), data: json!({ "log": line }) }
+    } else if line.contains("[SCREENSHOT]") {
+        // 指南 3: 浏览器预览截图
+        let json_str = line.split("[SCREENSHOT] ").nth(1).unwrap_or("{}");
+        let data: serde_json::Value = serde_json::from_str(json_str).unwrap_or(json!({ "raw": line }));
+        EngineEvent { event_type: "SCREENSHOT".into(), data }
     } else if line.contains("[CAPTCHA_PAUSE]") {
         let step_id = line.split("step_id").nth(1)
             .and_then(|s| s.split('"').nth(3))

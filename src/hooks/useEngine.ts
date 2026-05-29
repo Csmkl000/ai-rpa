@@ -19,6 +19,7 @@ export function useEngine() {
 
   const [error, setError] = useState<string | null>(null);
   const [captchaStepId, setCaptchaStepId] = useState<string | null>(null);
+  const [screenshot, setScreenshot] = useState<string | null>(null);
 
   useEffect(() => {
     logger.info(MOD, "正在监听引擎事件...");
@@ -58,6 +59,10 @@ export function useEngine() {
             setNodeStatus(data.step_id as string, "healing");
             setCaptchaStepId(data.step_id as string);
           }
+          break;
+        case "SCREENSHOT":
+          // 指南 3: 浏览器预览截图
+          if (data.image) setScreenshot(data.image as string);
           break;
         case "FINISHED":
           logger.info(MOD, "工作流执行结束", data);
@@ -146,5 +151,5 @@ export function useEngine() {
     });
   }, []);
 
-  return { runWorkflow, stopWorkflow, isRunning, error, clearError, captchaStepId, continueAfterCaptcha };
+  return { runWorkflow, stopWorkflow, isRunning, error, clearError, captchaStepId, continueAfterCaptcha, screenshot };
 }

@@ -12,6 +12,7 @@ export type EngineEventType =
   | "STEP_START"
   | "STEP_COMPLETE"
   | "CAPTCHA_PAUSE"
+  | "SCREENSHOT"
   | "ERROR"
   | "EXECUTION_CRASH";
 

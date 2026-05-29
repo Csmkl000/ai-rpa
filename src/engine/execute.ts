@@ -65,6 +65,18 @@ function parseArgs() {
   };
 }
 
+// 指南 3: 截图推送到前端预览
+async function captureScreenshot(stagehand: Stagehand, stepId: string) {
+  try {
+    const pages = stagehand.context.pages();
+    if (pages.length === 0) return;
+    const page = pages[pages.length - 1];
+    const screenshot = await page.screenshot({ type: "jpeg", quality: 50 });
+    const base64 = Buffer.from(screenshot).toString("base64");
+    emit("SCREENSHOT", { step_id: stepId, image: `data:image/jpeg;base64,${base64}` });
+  } catch {}
+}
+
 async function runEngine() {
   const { workflow, cacheDir, apiKey, model, baseURL, proxyUrl, headless } = parseArgs();
 
@@ -78,13 +90,18 @@ async function runEngine() {
   });
 
   for (const step of workflow.steps) {
+    // 每步执行后截图推送到前端预览
+    const screenshotAfter = () => captureScreenshot(stagehand, step.id);
+
     switch (step.type) {
       case "GOTO":
         await executeGoto(stagehand, { type: "GOTO", id: step.id, value: step.value! });
+        await screenshotAfter();
         break;
 
       case "ACT":
         await executeAct(stagehand, { type: "ACT", id: step.id, instruction: step.instruction! });
+        await screenshotAfter();
         break;
 
       case "EXTRACT":
@@ -94,10 +111,12 @@ async function runEngine() {
           instruction: step.instruction!,
           fields: (step.fields || []) as Array<{ name: string; type: "string" | "number" }>,
         });
+        await screenshotAfter();
         break;
 
       case "OBSERVE":
         await executeObserve(stagehand, { type: "OBSERVE", id: step.id, instruction: step.instruction! });
+        await screenshotAfter();
         break;
 
       case "EXTRACT_LOOP": {
