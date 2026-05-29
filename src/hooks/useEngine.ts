@@ -68,8 +68,10 @@ export function useEngine() {
           logger.success(MOD, `翻页抓取完成，共 ${data.totalPages || "?"} 页`);
           break;
         case "FINISHED":
+          console.log("[useEngine] 收到 FINISHED 事件, 即将 setRunning(false)");
           logger.success(MOD, "工作流执行完成");
           setRunning(false);
+          console.log("[useEngine] setRunning(false) 已调用");
           break;
         case "ERROR":
           logger.error(MOD, `引擎错误: ${data.message || "未知错误"}`);
