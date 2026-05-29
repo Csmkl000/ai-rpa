@@ -38,21 +38,22 @@ export function SettingsModal() {
   if (!settingsOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className="fixed inset-0 z-50 flex items-center justify-center animate-in fade-in duration-200">
       {/* 遮罩 */}
       <div
-        className="absolute inset-0 bg-black/30"
+        className="absolute inset-0 bg-black/30 backdrop-blur-sm"
         onClick={() => setSettingsOpen(false)}
       />
 
       {/* 弹窗 */}
-      <div className="relative bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 max-h-[80vh] overflow-y-auto">
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 max-h-[80vh] overflow-y-auto animate-in zoom-in-95 slide-in-from-bottom-4 duration-200">
         {/* 头部 */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 sticky top-0 bg-white/95 backdrop-blur-sm rounded-t-2xl z-10">
           <h2 className="text-lg font-semibold text-gray-900">设置</h2>
           <button
             onClick={() => setSettingsOpen(false)}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
+            aria-label="关闭设置"
+            className="text-gray-400 hover:text-gray-600 hover:bg-gray-100 p-1.5 rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-gray-400"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -68,7 +69,7 @@ export function SettingsModal() {
             <select
               value={local.llm_provider}
               onChange={(e) => setLocal({ ...local, llm_provider: e.target.value })}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
             >
               <option value="openai">OpenAI</option>
               <option value="anthropic">Anthropic (Claude)</option>
@@ -85,7 +86,7 @@ export function SettingsModal() {
               type="password"
               value={local.llm_api_key}
               onChange={(e) => setLocal({ ...local, llm_api_key: e.target.value })}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
               placeholder="sk-..."
             />
           </div>
@@ -97,7 +98,7 @@ export function SettingsModal() {
               type="text"
               value={local.base_url || ""}
               onChange={(e) => setLocal({ ...local, base_url: e.target.value || undefined })}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
               placeholder="https://api.openai.com/v1"
             />
             <p className="text-xs text-gray-400 mt-1">留空使用官方地址，第三方中转站填此处</p>
@@ -110,7 +111,7 @@ export function SettingsModal() {
               type="text"
               value={local.llm_model}
               onChange={(e) => setLocal({ ...local, llm_model: e.target.value })}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
               placeholder="gpt-4o"
             />
           </div>
@@ -122,7 +123,7 @@ export function SettingsModal() {
               type="text"
               value={local.proxy_url || ""}
               onChange={(e) => setLocal({ ...local, proxy_url: e.target.value || undefined })}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
               placeholder="http://127.0.0.1:7890"
             />
           </div>
@@ -150,7 +151,7 @@ export function SettingsModal() {
               type="number"
               value={local.cache_ttl_days}
               onChange={(e) => setLocal({ ...local, cache_ttl_days: Number(e.target.value) })}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
               min={1}
               max={365}
             />
@@ -161,7 +162,7 @@ export function SettingsModal() {
         <div className="px-6 py-4 border-t border-gray-100 flex justify-end">
           <button
             onClick={handleSave}
-            className="px-6 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-sm font-medium transition-colors"
+            className="px-6 py-2.5 bg-blue-500 hover:bg-blue-600 active:bg-blue-700 text-white rounded-lg text-sm font-medium shadow-sm shadow-blue-500/20 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
           >
             {saved ? "已保存" : "保存"}
           </button>
