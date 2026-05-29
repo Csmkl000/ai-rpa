@@ -103,9 +103,10 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
 
   setRunning: (running) => set({ isRunning: running }),
 
+  // [Perf: 上限 500 条，避免无限增长导致内存泄漏和 re-render 变慢]
   addEngineEvent: (event) =>
     set((state) => ({
-      engineLogs: [...state.engineLogs, event],
+      engineLogs: [...state.engineLogs, event].slice(-500),
     })),
 
   clearLogs: () => set({ engineLogs: [] }),

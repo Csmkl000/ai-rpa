@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { logger, type LogEntry, type LogLevel } from "../../lib/logger";
 
 const LEVEL_STYLE: Record<LogLevel, { color: string; icon: string }> = {
@@ -9,24 +9,57 @@ const LEVEL_STYLE: Record<LogLevel, { color: string; icon: string }> = {
   error:   { color: "text-red-500",    icon: "✗" },
 };
 
+const MAX_LOGS = 200;
+
 export function LogPanel() {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [filter, setFilter] = useState<LogLevel | "all">("all");
   const bottomRef = useRef<HTMLDivElement>(null);
+  // [Perf: 用 ref 缓冲日志，每 200ms 批量刷新 state，避免每条日志触发 re-render]
+  const pendingRef = useRef<LogEntry[]>([]);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const flush = useCallback(() => {
+    if (pendingRef.current.length === 0) return;
+    const batch = pendingRef.current.splice(0);
+    setLogs((prev) => {
+      const merged = [...prev, ...batch];
+      return merged.length > MAX_LOGS ? merged.slice(-MAX_LOGS) : merged;
+    });
+  }, []);
 
   useEffect(() => {
     setLogs(logger.getBuffer());
     const unsub = logger.subscribe((entry) => {
-      setLogs((prev) => [...prev, entry].slice(-200));
+      pendingRef.current.push(entry);
+      // [Perf: 200ms 批量刷新，避免高频 re-render]
+      if (!timerRef.current) {
+        timerRef.current = setTimeout(() => {
+          timerRef.current = null;
+          flush();
+        }, 200);
+      }
     });
-    return unsub;
-  }, []);
+    return () => {
+      unsub();
+      if (timerRef.current) clearTimeout(timerRef.current);
+      flush();
+    };
+  }, [flush]);
 
+  // [Perf: 用 requestAnimationFrame 替代直接 scrollIntoView，避免强制同步布局]
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    const id = requestAnimationFrame(() => {
+      bottomRef.current?.scrollIntoView({ behavior: "auto" });
+    });
+    return () => cancelAnimationFrame(id);
   }, [logs]);
 
-  const filtered = filter === "all" ? logs : logs.filter((l) => l.level === filter);
+  // [Perf: memoize 过滤结果，避免每次 render 都重新 filter]
+  const filtered = useMemo(
+    () => (filter === "all" ? logs : logs.filter((l) => l.level === filter)),
+    [logs, filter]
+  );
 
   return (
     <div className="h-full flex flex-col text-xs">
@@ -44,7 +77,7 @@ export function LogPanel() {
           </button>
         ))}
         <div className="flex-1" />
-        <button onClick={() => { logger.clear(); setLogs([]); }} className="text-gray-400 hover:text-gray-600">
+        <button onClick={() => { logger.clear(); setLogs([]); pendingRef.current = []; }} className="text-gray-400 hover:text-gray-600">
           清空
         </button>
       </div>

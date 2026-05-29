@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import {
   ReactFlow,
   Background,
@@ -41,14 +41,13 @@ const TYPE_TO_NODE: Record<string, string> = {
   CONDITION: "condition",
 };
 
-function buildFlowData(
-  // [Refactor: steps 类型从 any[] 改为 WorkflowStep[] by Claude]
-  steps: import("../../types/workflow").WorkflowStep[],
+function buildNodes(
+  steps: any[],
   nodeStatuses: Record<string, string>,
   onUpdate: (id: string, updates: Record<string, unknown>) => void,
   onRemove: (id: string) => void
-) {
-  const nodes: Node[] = steps.map((step, i) => ({
+): Node[] {
+  return steps.map((step, i) => ({
     id: step.id,
     type: TYPE_TO_NODE[step.type] || "act",
     position: { x: 250, y: i * 140 },
@@ -59,8 +58,10 @@ function buildFlowData(
       onRemove: () => onRemove(step.id),
     },
   }));
+}
 
-  const edges: Edge[] = steps.slice(0, -1).map((step, i) => ({
+function buildEdges(steps: any[], nodeStatuses: Record<string, string>): Edge[] {
+  return steps.slice(0, -1).map((step, i) => ({
     id: `${step.id}-${steps[i + 1].id}`,
     source: step.id,
     target: steps[i + 1].id,
@@ -68,8 +69,6 @@ function buildFlowData(
     animated: nodeStatuses[step.id] === "running",
     style: { stroke: "#6366f1" },
   }));
-
-  return { nodes, edges };
 }
 
 export function WorkflowCanvas() {
@@ -80,25 +79,43 @@ export function WorkflowCanvas() {
 
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
+  // [Perf: 用 ref 记录上次 steps 引用，避免 status 变化时重建全部节点]
+  const prevStepsRef = useRef<any[] | null>(null);
 
-  // 当工作流步骤或节点状态变化时，同步更新画布
+  // 步骤变化时：重建全部节点和边
   useEffect(() => {
     if (!currentWorkflow) {
       setNodes([]);
       setEdges([]);
+      prevStepsRef.current = null;
       return;
     }
 
-    const { nodes: newNodes, edges: newEdges } = buildFlowData(
-      currentWorkflow.steps,
-      nodeStatuses,
-      updateStep,
-      removeStep
-    );
-
+    prevStepsRef.current = currentWorkflow.steps;
+    const newNodes = buildNodes(currentWorkflow.steps, nodeStatuses, updateStep, removeStep);
+    const newEdges = buildEdges(currentWorkflow.steps, nodeStatuses);
     setNodes(newNodes);
     setEdges(newEdges);
-  }, [currentWorkflow, currentWorkflow?.steps, nodeStatuses, updateStep, removeStep, setNodes, setEdges]);
+  }, [currentWorkflow, currentWorkflow?.steps, updateStep, removeStep, setNodes, setEdges]);
+
+  // [Perf: 状态变化时：只更新受影响节点的 data，不重建全部节点]
+  useEffect(() => {
+    if (!prevStepsRef.current) return;
+    setNodes((nds) =>
+      nds.map((node) => {
+        const newStatus = nodeStatuses[node.id] || "idle";
+        if (node.data.status === newStatus) return node;
+        return { ...node, data: { ...node.data, status: newStatus } };
+      })
+    );
+    setEdges((eds) =>
+      eds.map((edge) => {
+        const isRunning = nodeStatuses[edge.source] === "running";
+        if (edge.animated === isRunning) return edge;
+        return { ...edge, animated: isRunning };
+      })
+    );
+  }, [nodeStatuses, setNodes, setEdges]);
 
   const onConnect: OnConnect = useCallback(
     (params) => setEdges((eds) => addEdge({ ...params, type: "smoothstep", style: { stroke: "#6366f1" } }, eds)),
@@ -121,7 +138,7 @@ export function WorkflowCanvas() {
           style: { stroke: "#6366f1" },
         }}
       >
-        <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#333" />
+        <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#ddd" />
         <Controls />
         <MiniMap
           nodeColor={(node) => {
@@ -131,7 +148,7 @@ export function WorkflowCanvas() {
               case "success": return "#22c55e";
               case "error": return "#ef4444";
               case "healing": return "#f97316";
-              default: return "#4b5563";
+              default: return "#d1d5db";
             }
           }}
         />

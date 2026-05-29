@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useWorkflowStore } from "../../stores/workflowStore";
 
 export function DataPreview() {
@@ -11,25 +11,21 @@ export function DataPreview() {
       .map((e) => e.data);
   }, [engineLogs]);
 
-  if (extractedData.length === 0) {
-    return (
-      <div className="h-full flex items-center justify-center text-gray-400 text-sm">
-        运行包含"提取数据"的工作流后，数据将在此显示
-      </div>
-    );
-  }
-
+  // [Perf: columns memoize，且移到 early return 之前避免违反 hooks 规则]
   const columns = useMemo(() => {
     const keys = new Set<string>();
     for (const row of extractedData) {
       if (typeof row === "object" && row !== null) {
-        Object.keys(row).forEach((k) => keys.add(k));
+        for (const k of Object.keys(row)) {
+          keys.add(k);
+        }
       }
     }
     return Array.from(keys);
   }, [extractedData]);
 
-  const exportCSV = () => {
+  // [Perf: exportCSV memoize，避免每次 render 重建函数]
+  const exportCSV = useCallback(() => {
     const header = columns.join(",");
     const rows = extractedData.map((row) =>
       columns.map((col) => {
@@ -44,8 +40,17 @@ export function DataPreview() {
     a.href = url;
     a.download = "data.csv";
     a.click();
+    // [Perf: 立即释放 Blob URL 避免内存泄漏]
     URL.revokeObjectURL(url);
-  };
+  }, [columns, extractedData]);
+
+  if (extractedData.length === 0) {
+    return (
+      <div className="h-full flex items-center justify-center text-gray-400 text-sm">
+        运行包含"提取数据"的工作流后，数据将在此显示
+      </div>
+    );
+  }
 
   return (
     <div className="h-full flex flex-col p-3">
