@@ -36,7 +36,7 @@ const TYPE_TO_NODE: Record<string, string> = {
   ACT: "act",
   EXTRACT: "extract",
   OBSERVE: "act",
-  EXTRACT_LOOP: "loop",
+  LOOP: "loop",
   AUTONOMOUS_AGENT: "agent",
   CONDITION: "condition",
 };

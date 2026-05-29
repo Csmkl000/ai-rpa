@@ -10,7 +10,7 @@ const STEP_TYPES: { type: StepType; label: string; icon: string }[] = [
   { type: "ACT", label: "执行操作", icon: "👆" },
   { type: "EXTRACT", label: "提取数据", icon: "📊" },
   { type: "OBSERVE", label: "观察页面", icon: "👁" },
-  { type: "EXTRACT_LOOP", label: "循环提取", icon: "🔄" },
+  { type: "LOOP", label: "循环", icon: "🔄" },
   { type: "CONDITION", label: "条件分支", icon: "🔀" },
   { type: "AUTONOMOUS_AGENT", label: "AI 智能体", icon: "🤖" },
 ];
@@ -26,7 +26,7 @@ export function MainPanel() {
   const handleAddStep = (type: StepType) => {
     const labels: Record<StepType, string> = {
       GOTO: "打开网页", ACT: "执行操作", EXTRACT: "提取数据",
-      OBSERVE: "观察页面", EXTRACT_LOOP: "循环提取",
+      OBSERVE: "观察页面", LOOP: "循环",
       CONDITION: "条件分支", AUTONOMOUS_AGENT: "AI 智能体",
     };
     addStep({ id: crypto.randomUUID(), type, label: labels[type] });

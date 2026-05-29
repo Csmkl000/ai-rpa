@@ -93,7 +93,7 @@ export function useWorkflow() {
         ACT: "执行操作",
         EXTRACT: "提取数据",
         OBSERVE: "观察页面",
-        EXTRACT_LOOP: "循环提取",
+        LOOP: "循环",
         CONDITION: "条件分支",
         AUTONOMOUS_AGENT: "AI 智能体",
       };

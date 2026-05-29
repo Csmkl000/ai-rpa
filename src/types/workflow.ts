@@ -3,9 +3,9 @@ export type StepType =
   | "ACT"
   | "EXTRACT"
   | "OBSERVE"
-  | "EXTRACT_LOOP"
-  | "AUTONOMOUS_AGENT"
-  | "CONDITION";
+  | "LOOP"
+  | "CONDITION"
+  | "AUTONOMOUS_AGENT";
 
 export interface ExtractField {
   name: string;
@@ -20,12 +20,15 @@ export interface WorkflowStep {
   instruction?: string;
   fields?: ExtractField[];
   extractInstruction?: string;
-  maxPages?: number;
   task?: string;
   maxSteps?: number;
   condition?: string;
   trueStepId?: string;
   falseStepId?: string;
+  /** LOOP: 最大迭代次数 */
+  maxIterations?: number;
+  /** LOOP: 循环体子步骤 */
+  body?: WorkflowStep[];
 }
 
 export interface Workflow {

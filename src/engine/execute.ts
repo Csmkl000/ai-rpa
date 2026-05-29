@@ -10,17 +10,18 @@ import { generateDynamicSchema } from "./utils/schema";
 
 interface WorkflowStep {
   id: string;
-  type: "GOTO" | "ACT" | "EXTRACT" | "OBSERVE" | "EXTRACT_LOOP" | "AUTONOMOUS_AGENT" | "CONDITION";
+  type: "GOTO" | "ACT" | "EXTRACT" | "OBSERVE" | "LOOP" | "CONDITION" | "AUTONOMOUS_AGENT";
   value?: string;
   instruction?: string;
   fields?: Array<{ name: string; type: string }>;
   extractInstruction?: string;
-  maxPages?: number;
   task?: string;
   maxSteps?: number;
   condition?: string;
   trueStepId?: string;
   falseStepId?: string;
+  maxIterations?: number;
+  body?: WorkflowStep[];
 }
 
 interface Workflow {
@@ -48,176 +49,102 @@ function parseArgs() {
       case "--base-url": baseURL = next; i++; break;
       case "--proxy": proxyUrl = next; i++; break;
       case "--headless":
-        if (next && !next.startsWith("--")) {
-          headless = next !== "false";
-          i++;
-        } else {
-          headless = true;
-        }
+        if (next && !next.startsWith("--")) { headless = next !== "false"; i++; }
+        else headless = true;
         break;
-      case "--no-headless":
-        headless = false;
-        break;
+      case "--no-headless": headless = false; break;
     }
   }
 
-  if (!workflowFile) {
-    throw new Error("Missing --workflow-file argument");
-  }
+  if (!workflowFile) throw new Error("Missing --workflow-file argument");
 
   const workflowJson = require("fs").readFileSync(workflowFile, "utf-8");
   const workflow: Workflow = JSON.parse(workflowJson);
-  return {
-    workflow,
-    cacheDir: cacheDir || "/tmp/stagehand-cache",
-    apiKey,
-    model,
-    baseURL,
-    proxyUrl,
-    headless,
-  };
+  return { workflow, cacheDir: cacheDir || "/tmp/stagehand-cache", apiKey, model, baseURL, proxyUrl, headless };
+}
+
+/** 执行单个步骤 */
+async function executeStep(stagehand: any, step: WorkflowStep): Promise<void> {
+  switch (step.type) {
+    case "GOTO":
+      await executeGoto(stagehand, { type: "GOTO", id: step.id, value: step.value! });
+      break;
+
+    case "ACT":
+      await executeAct(stagehand, { type: "ACT", id: step.id, instruction: step.instruction! });
+      break;
+
+    case "EXTRACT":
+      await executeExtract(stagehand, {
+        type: "EXTRACT", id: step.id, instruction: step.instruction!,
+        fields: (step.fields || []) as Array<{ name: string; type: "string" | "number" }>,
+      });
+      break;
+
+    case "OBSERVE":
+      await executeObserve(stagehand, { type: "OBSERVE", id: step.id, instruction: step.instruction! });
+      break;
+
+    case "CONDITION": {
+      const result = await executeCondition(stagehand, {
+        type: "CONDITION", id: step.id, condition: step.condition!,
+      });
+      (globalThis as any).__conditionResults = (globalThis as any).__conditionResults || {};
+      (globalThis as any).__conditionResults[step.id] = result;
+      break;
+    }
+
+    case "AUTONOMOUS_AGENT":
+      await executeAgent(stagehand, {
+        type: "AUTONOMOUS_AGENT", id: step.id, task: step.task!, maxSteps: step.maxSteps,
+      });
+      break;
+
+    default:
+      emitError(`未知的步骤类型: ${(step as any).type}`, step.id);
+  }
 }
 
 async function runEngine() {
   const { workflow, cacheDir, apiKey, model, baseURL, proxyUrl, headless } = parseArgs();
 
   const stagehand = await createStagehand({
-    cacheDir,
-    apiKey,
-    model,
-    baseURL,
-    proxyUrl,
-    headless,
+    cacheDir, apiKey, model, baseURL, proxyUrl, headless,
   });
 
-  // 追踪条件分支的跳转目标
-  const stepResults = new Map<string, boolean>();
-
   for (const step of workflow.steps) {
-    // 检查是否被条件分支跳过
-    const shouldSkip = workflow.steps.some((s) => {
-      if (s.type !== "CONDITION") return false;
-      const condResult = stepResults.get(s.id);
-      if (condResult === true && s.trueStepId === step.id) return false;
-      if (condResult === false && s.falseStepId === step.id) return false;
-      // 如果这个步骤是某个条件的分支目标，但条件还没执行，则跳过
-      if ((s.trueStepId === step.id || s.falseStepId === step.id) && condResult === undefined) return true;
-      return false;
-    });
+    if (step.type === "LOOP") {
+      // 通用循环: 每次迭代执行 body 中的所有步骤，AI 判断条件是否继续
+      const maxIter = step.maxIterations || 10;
+      const body = step.body || [];
 
-    // #9: 验证必填字段
-    if (step.type === "GOTO" && !step.value) {
-      emitError("GOTO 步骤缺少 value (URL)", step.id);
-      continue;
-    }
-    if (["ACT", "EXTRACT", "OBSERVE"].includes(step.type) && !step.instruction) {
-      emitError(`${step.type} 步骤缺少 instruction`, step.id);
-      continue;
-    }
-    if (step.type === "CONDITION" && !step.condition) {
-      emitError("CONDITION 步骤缺少 condition", step.id);
-      continue;
-    }
+      emitStep("STEP_START", step.id, { step: "LOOP", condition: step.condition, maxIterations: maxIter });
 
+      for (let i = 0; i < maxIter; i++) {
+        emit("LOG", { log: `循环第 ${i + 1}/${maxIter} 次` });
 
-    switch (step.type) {
-      case "GOTO":
-        await executeGoto(stagehand, { type: "GOTO", id: step.id, value: step.value! });
-        break;
+        for (const bodyStep of body) {
+          await executeStep(stagehand, bodyStep);
+        }
 
-      case "ACT":
-        await executeAct(stagehand, { type: "ACT", id: step.id, instruction: step.instruction! });
-        break;
-
-      case "EXTRACT":
-        await executeExtract(stagehand, {
-          type: "EXTRACT",
-          id: step.id,
-          instruction: step.instruction!,
-          fields: (step.fields || []) as Array<{ name: string; type: "string" | "number" }>,
-        });
-        break;
-
-      case "OBSERVE":
-        await executeObserve(stagehand, { type: "OBSERVE", id: step.id, instruction: step.instruction! });
-        break;
-
-      case "EXTRACT_LOOP": {
-        let hasNextPage = true;
-        let currentPage = 1;
-        const maxPages = step.maxPages || 10;
-
-        while (hasNextPage && currentPage <= maxPages) {
-          const schema = generateDynamicSchema(
-            (step.fields || []) as Array<{ name: string; type: "string" | "number" }>
-          );
+        // AI 判断是否继续
+        if (step.condition) {
           try {
-            const data = await stagehand.extract(
-              step.extractInstruction || "提取页面中的数据",
-              schema
-            );
-            emitData(data, step.id);
-          } catch (e: any) {
-            emitError(`提取失败: ${e?.message}`, step.id);
+            const actions = await stagehand.observe(step.condition);
+            if (actions.length === 0) {
+              emit("LOG", { log: `条件不满足，循环结束 (第 ${i + 1} 次)` });
+              break;
+            }
+          } catch {
+            emit("LOG", { log: `条件判断失败，循环结束` });
             break;
-          }
-
-          let actions;
-          try {
-            actions = await stagehand.observe("查找跳转到下一页或翻页的交互元素");
-          } catch (e: any) {
-            emitError(`观察页面失败: ${e?.message}`, step.id);
-            break;
-          }
-
-          const nextAction = actions.find(
-            (a: any) =>
-              a.description?.toLowerCase().includes("next") ||
-              a.description?.includes("下一页") ||
-              a.description?.includes("＞") ||
-              a.description?.includes(">>")
-          );
-
-          if (nextAction) {
-            const sleepTime = Math.floor(Math.random() * 1500) + 1500;
-            await new Promise((r) => setTimeout(r, sleepTime));
-            // #13: 修复 [object Object] 回退
-            const desc = nextAction.description || "下一页";
-            await stagehand.act(`点击 ${desc}`);
-            currentPage++;
-          } else {
-            emit("PAGINATION_FINISHED", {
-              step_id: step.id,
-              message: "未发现有效的下一页元素，分页抓取安全终止",
-              totalPages: currentPage,
-            });
-            hasNextPage = false;
           }
         }
-        break;
       }
 
-      case "CONDITION": {
-        const result = await executeCondition(stagehand, {
-          type: "CONDITION",
-          id: step.id,
-          condition: step.condition!,
-        });
-        stepResults.set(step.id, result);
-        break;
-      }
-
-      case "AUTONOMOUS_AGENT":
-        await executeAgent(stagehand, {
-          type: "AUTONOMOUS_AGENT",
-          id: step.id,
-          task: step.task!,
-          maxSteps: step.maxSteps,
-        });
-        break;
-
-      default:
-        emitError(`未知的步骤类型: ${(step as any).type}`, step.id);
+      emitStep("STEP_COMPLETE", step.id, { step: "LOOP" });
+    } else {
+      await executeStep(stagehand, step);
     }
   }
 
