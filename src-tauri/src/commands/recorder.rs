@@ -9,6 +9,7 @@ static mut RECORD_CHILD: Option<std::process::Child> = None;
 pub async fn start_recording(
     app: AppHandle,
     url: String,
+    headless: bool,
 ) -> Result<String, String> {
     let output_file = std::env::temp_dir().join("ai-rpa-recording.json");
     let engine_script = find_record_script(&app)?;
@@ -20,6 +21,8 @@ pub async fn start_recording(
         url,
         "--output".to_string(),
         output_file.to_string_lossy().to_string(),
+        "--headless".to_string(),
+        headless.to_string(),
     ];
 
     eprintln!("[RECORDER] 启动: {} {}", bun_path, args.join(" "));

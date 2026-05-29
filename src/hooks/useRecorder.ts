@@ -11,6 +11,7 @@ export function useRecorder() {
   const [isRecording, setIsRecording] = useState(false);
   const [recordedSteps, setRecordedSteps] = useState<Partial<WorkflowStep>[]>([]);
   const addStep = useWorkflowStore((s) => s.addStep);
+  const settings = useWorkflowStore((s) => s.settings);
 
   useEffect(() => {
     const unlisten = listen<EngineEvent>("rpa-event", (event) => {
@@ -38,7 +39,7 @@ export function useRecorder() {
     setRecordedSteps([]);
 
     try {
-      await invoke("start_recording", { url });
+      await invoke("start_recording", { url, headless: false });
     } catch (err: any) {
       logger.error(MOD, `启动录制失败: ${err}`);
       setIsRecording(false);

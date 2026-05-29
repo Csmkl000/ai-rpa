@@ -1,6 +1,7 @@
 // 指南 5: 智能录制引擎
-// 只需要浏览器 + JS 注入，不需要 Stagehand/LLM
+// 使用 Stagehand 打开浏览器（不需要 API Key）
 
+import { createStagehand } from "./stagehand/client";
 import { emit } from "./protocol/messages";
 import { writeFileSync } from "fs";
 import { randomUUID } from "crypto";
@@ -13,17 +14,17 @@ declare global {
 
 function parseArgs() {
   const args = process.argv.slice(2);
-  let url = "", outputFile = "";
+  let url = "", outputFile = "", headless = "false";
   for (let i = 0; i < args.length; i++) {
     const next = args[i + 1];
     switch (args[i]) {
       case "--url": url = next; i++; break;
       case "--output": outputFile = next; i++; break;
-      // 忽略其他参数（录制不需要）
+      case "--headless": headless = next; i++; break;
       default: i++; break;
     }
   }
-  return { url, outputFile };
+  return { url, outputFile, headless: headless !== "true" };
 }
 
 const RECORD_SCRIPT = `
@@ -80,21 +81,33 @@ const RECORD_SCRIPT = `
 `;
 
 async function runRecorder() {
-  const { url, outputFile } = parseArgs();
-  console.log(`[RECORD] 启动录制, url=${url}`);
+  const { url, outputFile, headless } = parseArgs();
+  console.log(`[RECORD] 启动录制, url=${url}, headless=${headless}`);
 
-  // 直接用 Playwright，不需要 Stagehand/LLM
-  const { chromium } = require("playwright-core");
-  const browser = await chromium.launch({ headless: false });
-  const page = await browser.newPage();
+  // 用 Stagehand 打开浏览器，recordMode 跳过 LLM 初始化
+  const stagehand = await createStagehand({
+    cacheDir: "/tmp/stagehand-record-cache",
+    headless,
+    recordMode: true,
+  });
 
-  await page.goto(url || "about:blank", { waitUntil: "domcontentloaded" });
-  await page.waitForTimeout(1500);
+  const page = stagehand.context.pages()[0];
+  if (!page) {
+    console.error("[RECORD] 没有可用的页面");
+    process.exit(1);
+  }
+
+  await page.goto(url);
+  await new Promise(r => setTimeout(r, 2000));
 
   // 注入录制脚本
   console.log(`[RECORD] 注入录制脚本...`);
-  await page.evaluate(RECORD_SCRIPT);
-  console.log(`[RECORD] 脚本注入成功，请在浏览器中操作`);
+  try {
+    await page.evaluate(RECORD_SCRIPT);
+    console.log(`[RECORD] 脚本注入成功，请在浏览器中操作`);
+  } catch (e: any) {
+    console.error(`[RECORD] 脚本注入失败: ${e.message}`);
+  }
 
   emit("ENGINE_BOOT", { message: "录制已启动，请在浏览器中操作", url });
 
@@ -105,7 +118,7 @@ async function runRecorder() {
   const poll = setInterval(async () => {
     try {
       const result = await page.evaluate(() => {
-        return JSON.stringify(window.__RECORDED_ACTIONS__ || []);
+        return JSON.stringify((window as any).__RECORDED_ACTIONS__ || []);
       });
       const current: any[] = JSON.parse(result);
       if (current.length > lastCount) {
@@ -143,7 +156,7 @@ async function runRecorder() {
   console.log(`[RECORD_DONE] 录制完成，共 ${mappedActions.length} 步`);
   console.log(`[RECORD_DONE] ${JSON.stringify(finalResult)}`);
 
-  await browser.close();
+  await stagehand.close();
   process.exit(0);
 }
 
