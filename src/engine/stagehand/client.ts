@@ -10,10 +10,14 @@ export interface StagehandConfig {
   model?: string;
   baseURL?: string;
   headless?: boolean;
+  provider?: string;
 }
 
 export async function createStagehand(config: StagehandConfig): Promise<Stagehand> {
-  if (!config.apiKey) {
+  const provider = config.provider || "openai";
+
+  // Ollama 本地模型不需要 API Key
+  if (provider !== "ollama" && !config.apiKey) {
     emitError("未配置 API Key。请在设置面板中填写 LLM API Key 后再运行工作流。");
     throw new Error("Missing API Key");
   }
@@ -21,15 +25,35 @@ export async function createStagehand(config: StagehandConfig): Promise<Stagehan
   const rawModel = config.model || "gpt-4o";
   const modelName = rawModel.includes("/") ? rawModel.split("/").pop()! : rawModel;
 
-  const openaiClient = new OpenAI({
-    apiKey: config.apiKey,
-    baseURL: config.baseURL || undefined,
-  });
+  let llmClient;
 
-  const llmClient = new CustomOpenAIClient({
-    modelName,
-    client: openaiClient,
-  });
+  if (provider === "ollama") {
+    // 指南 2: Ollama 本地模型兼容
+    // Ollama 兼容 OpenAI API 格式，baseURL 默认 http://localhost:11434/v1
+    const ollamaBaseURL = config.baseURL || "http://localhost:11434/v1";
+    const ollamaClient = new OpenAI({
+      apiKey: "ollama", // Ollama 不需要真实 key
+      baseURL: ollamaBaseURL,
+    });
+    llmClient = new CustomOpenAIClient({
+      modelName,
+      client: ollamaClient,
+    });
+    emit("ENGINE_BOOT", {
+      message: `Ollama 本地模型已连接: ${modelName}`,
+      baseURL: ollamaBaseURL,
+    });
+  } else {
+    // OpenAI 兼容 API（含第三方中转站）
+    const openaiClient = new OpenAI({
+      apiKey: config.apiKey!,
+      baseURL: config.baseURL || undefined,
+    });
+    llmClient = new CustomOpenAIClient({
+      modelName,
+      client: openaiClient,
+    });
+  }
 
   const stagehand = new Stagehand({
     env: "LOCAL",
@@ -44,21 +68,19 @@ export async function createStagehand(config: StagehandConfig): Promise<Stagehan
 
   await stagehand.init();
 
-  // 指南 7.2: 注入反爬指纹伪装脚本到当前页面
+  // 指南 7.2: 注入反爬指纹伪装脚本
   try {
-    const context = stagehand.context;
-    const pages = context.pages();
+    const pages = stagehand.context.pages();
     for (const page of pages) {
       await page.evaluate(getStealthScript());
     }
-  } catch {
-    // 忽略注入失败
-  }
+  } catch {}
 
   emit("ENGINE_BOOT", {
     message: "Stagehand v3 CDP 引擎初始化完毕",
     cacheDir: config.cacheDir,
     model: modelName,
+    provider,
   });
 
   return stagehand;

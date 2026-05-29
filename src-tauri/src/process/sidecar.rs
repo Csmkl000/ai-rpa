@@ -1,6 +1,7 @@
 use super::EngineEvent;
 use serde_json::json;
 use tauri::{AppHandle, Emitter, Manager};
+use tauri_plugin_shell::ShellExt;
 
 macro_rules! engine_log {
     ($($arg:tt)*) => {
@@ -21,10 +22,7 @@ fn chrono_now() -> String {
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default();
     let secs = d.as_secs();
-    let hours = (secs % 86400) / 3600;
-    let mins = (secs % 3600) / 60;
-    let ss = secs % 60;
-    format!("{:02}:{:02}:{:02}", hours, mins, ss)
+    format!("{:02}:{:02}:{:02}", (secs % 86400) / 3600, (secs % 3600) / 60, secs % 60)
 }
 
 pub async fn spawn_engine(
@@ -39,21 +37,14 @@ pub async fn spawn_engine(
 ) -> Result<(), String> {
     engine_log!("=== spawn_engine 开始 ===");
 
-    // 1. 定位引擎脚本
     let engine_script = find_engine_script(&app)?;
     engine_log!("引擎脚本: {}", engine_script);
 
-    // 2. 查找 bun
-    let bun_path = find_bun_executable()?;
-    engine_log!("Bun 路径: {}", bun_path);
-
-    // 3. 将 workflow JSON 写入临时文件，避免命令行参数转义问题
+    // 写 workflow 到临时文件
     let workflow_file = std::env::temp_dir().join("ai-rpa-workflow.json");
     std::fs::write(&workflow_file, &workflow_json)
         .map_err(|e| format!("写入工作流文件失败: {}", e))?;
-    engine_log!("工作流文件: {}", workflow_file.display());
 
-    // 4. 构造参数
     let args = vec![
         engine_script,
         "--workflow-file".to_string(),
@@ -72,122 +63,154 @@ pub async fn spawn_engine(
         headless.to_string(),
     ];
 
-    engine_log!("启动命令: {} {}", bun_path, args.join(" "));
-
-    // 5. 启动进程
+    // 指南 6.1: 优先用 Tauri sidecar，找不到则回退到 std::process::Command
     let app_clone = app.clone();
+    let args_clone = args.clone();
+
+    match try_sidecar(&app, &args) {
+        Ok(()) => {
+            engine_log!("使用 Tauri Sidecar 模式启动");
+            return Ok(());
+        }
+        Err(e) => {
+            engine_log!("Sidecar 不可用 ({}), 回退到 std::process::Command", e);
+        }
+    }
+
+    // 回退: std::process::Command
+    let bun_path = find_bun_executable()?;
+    engine_log!("Bun 路径: {}", bun_path);
+    engine_log!("启动命令: {} {}", bun_path, args_clone.join(" "));
+
     let mut child = match std::process::Command::new(&bun_path)
-        .args(&args)
+        .args(&args_clone)
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
         .stdin(std::process::Stdio::piped())
         .spawn()
     {
-        Ok(c) => {
-            engine_log!("进程启动成功, pid={:?}", c.id());
-            c
-        }
-        Err(e) => {
-            engine_log!("进程启动失败: {}", e);
-            return Err(format!("启动执行器失败: {}", e));
-        }
+        Ok(c) => { engine_log!("进程启动成功, pid={:?}", c.id()); c }
+        Err(e) => { engine_log!("进程启动失败: {}", e); return Err(format!("启动执行器失败: {}", e)); }
     };
 
-    // 6. 读取 stdout
-    let stdout = child.stdout.take().ok_or("无法获取 stdout")?;
-    let app_out = app_clone.clone();
-    std::thread::spawn(move || {
-        use std::io::{BufRead, BufReader};
-        for line in BufReader::new(stdout).lines() {
-            if let Ok(line) = line {
-                engine_log!("[stdout] {}", line);
-                let _ = app_out.emit("rpa-event", parse_engine_line(&line));
+    spawn_io_threads(app_clone, child);
+    Ok(())
+}
+
+fn try_sidecar(app: &AppHandle, args: &[String]) -> Result<(), String> {
+    let shell = app.shell();
+    let (mut rx, _child) = shell
+        .sidecar("bun")
+        .map_err(|e| format!("sidecar 初始化失败: {}", e))?
+        .args(args)
+        .spawn()
+        .map_err(|e| format!("sidecar 启动失败: {}", e))?;
+
+    let app_clone = app.clone();
+    tauri::async_runtime::spawn(async move {
+        while let Some(event) = rx.recv().await {
+            match event {
+                tauri_plugin_shell::process::CommandEvent::Stdout(line_bytes) => {
+                    let line = String::from_utf8_lossy(&line_bytes).to_string();
+                    engine_log!("[stdout] {}", line);
+                    let _ = app_clone.emit("rpa-event", parse_engine_line(&line));
+                }
+                tauri_plugin_shell::process::CommandEvent::Stderr(line_bytes) => {
+                    let line = String::from_utf8_lossy(&line_bytes).to_string();
+                    engine_log!("[stderr] {}", line);
+                    let _ = app_clone.emit("rpa-event", EngineEvent {
+                        event_type: "ERROR".into(),
+                        data: json!({ "message": line }),
+                    });
+                }
+                tauri_plugin_shell::process::CommandEvent::Terminated(payload) => {
+                    engine_log!("进程退出, code={:?}", payload.code);
+                    let _ = app_clone.emit("rpa-event", EngineEvent {
+                        event_type: "FINISHED".into(),
+                        data: json!({ "code": payload.code }),
+                    });
+                    break;
+                }
+                _ => {}
             }
         }
     });
+    Ok(())
+}
 
-    // 7. 读取 stderr
-    let stderr = child.stderr.take().ok_or("无法获取 stderr")?;
-    let app_err = app_clone.clone();
-    std::thread::spawn(move || {
-        use std::io::{BufRead, BufReader};
-        for line in BufReader::new(stderr).lines() {
-            if let Ok(line) = line {
-                engine_log!("[stderr] {}", line);
-                let _ = app_err.emit("rpa-event", EngineEvent {
-                    event_type: "ERROR".to_string(),
-                    data: json!({ "message": line }),
-                });
+fn spawn_io_threads(app: AppHandle, mut child: std::process::Child) {
+    let stdout = child.stdout.take();
+    let stderr = child.stderr.take();
+
+    if let Some(stdout) = stdout {
+        let app_out = app.clone();
+        std::thread::spawn(move || {
+            use std::io::{BufRead, BufReader};
+            for line in BufReader::new(stdout).lines() {
+                if let Ok(line) = line {
+                    engine_log!("[stdout] {}", line);
+                    let _ = app_out.emit("rpa-event", parse_engine_line(&line));
+                }
             }
-        }
-    });
+        });
+    }
 
-    // 8. 等待进程结束
-    let app_fin = app_clone.clone();
+    if let Some(stderr) = stderr {
+        let app_err = app.clone();
+        std::thread::spawn(move || {
+            use std::io::{BufRead, BufReader};
+            for line in BufReader::new(stderr).lines() {
+                if let Ok(line) = line {
+                    engine_log!("[stderr] {}", line);
+                    let _ = app_err.emit("rpa-event", EngineEvent {
+                        event_type: "ERROR".into(),
+                        data: json!({ "message": line }),
+                    });
+                }
+            }
+        });
+    }
+
+    let app_fin = app.clone();
     std::thread::spawn(move || {
         let status = child.wait();
         let code = status.map(|s| s.code()).unwrap_or(Some(-1));
         engine_log!("进程退出, code={:?}", code);
         let _ = app_fin.emit("rpa-event", EngineEvent {
-            event_type: "FINISHED".to_string(),
+            event_type: "FINISHED".into(),
             data: json!({ "code": code }),
         });
     });
-
-    Ok(())
 }
 
 fn find_engine_script(app: &AppHandle) -> Result<String, String> {
-    let dev_path = std::env::current_dir()
-        .ok()
+    let dev_path = std::env::current_dir().ok()
         .and_then(|d| d.parent().map(|p| p.join("src/engine/execute.ts")))
         .filter(|p| p.exists());
+    if let Some(p) = dev_path { return Ok(p.to_string_lossy().to_string()); }
 
-    if let Some(p) = dev_path {
-        return Ok(p.to_string_lossy().to_string());
-    }
-
-    let resource_path = app
-        .path()
-        .resource_dir()
-        .ok()
+    let resource_path = app.path().resource_dir().ok()
         .map(|d| d.join("src/engine/execute.ts"))
         .filter(|p| p.exists());
+    if let Some(p) = resource_path { return Ok(p.to_string_lossy().to_string()); }
 
-    if let Some(p) = resource_path {
-        return Ok(p.to_string_lossy().to_string());
-    }
-
-    Err("找不到引擎脚本 src/engine/execute.ts".to_string())
+    Err("找不到引擎脚本".to_string())
 }
 
 fn find_bun_executable() -> Result<String, String> {
     let home = std::env::var("USERPROFILE")
         .or_else(|_| std::env::var("HOME"))
         .unwrap_or_default();
-
     let candidates: Vec<String> = if cfg!(windows) {
-        vec![
-            format!("{}\\.bun\\bin\\bun.exe", home),
-            "C:\\Program Files\\bun\\bun.exe".to_string(),
-        ]
+        vec![format!("{}\\.bun\\bin\\bun.exe", home)]
     } else {
-        vec![
-            format!("{}/.bun/bin/bun", home),
-            "/usr/local/bin/bun".to_string(),
-            "/opt/homebrew/bin/bun".to_string(),
-        ]
+        vec![format!("{}/.bun/bin/bun", home), "/usr/local/bin/bun".into()]
     };
-
-    for candidate in &candidates {
-        if std::path::Path::new(candidate).exists() {
-            return Ok(candidate.clone());
-        }
+    for c in &candidates {
+        if std::path::Path::new(c).exists() { return Ok(c.clone()); }
     }
-
     if let Ok(output) = std::process::Command::new(if cfg!(windows) { "where" } else { "which" })
-        .arg("bun")
-        .output()
+        .arg("bun").output()
     {
         let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
         if !path.is_empty() {
@@ -197,11 +220,10 @@ fn find_bun_executable() -> Result<String, String> {
             }
         }
     }
-
     Err(format!("找不到 bun。候选路径: {:?}", candidates))
 }
 
-fn parse_engine_line(line: &str) -> EngineEvent {
+pub fn parse_engine_line(line: &str) -> EngineEvent {
     if line.contains("[CACHE_HIT]") {
         EngineEvent { event_type: "CACHE_HIT".into(), data: json!({ "log": line }) }
     } else if line.contains("[SELF_HEALING]") {
@@ -221,16 +243,14 @@ fn parse_engine_line(line: &str) -> EngineEvent {
     } else if line.contains("[ENGINE_BOOT]") {
         EngineEvent { event_type: "ENGINE_BOOT".into(), data: json!({ "log": line }) }
     } else if line.contains("[SCREENSHOT]") {
-        // 指南 3: 浏览器预览截图
         let json_str = line.split("[SCREENSHOT] ").nth(1).unwrap_or("{}");
         let data: serde_json::Value = serde_json::from_str(json_str).unwrap_or(json!({ "raw": line }));
         EngineEvent { event_type: "SCREENSHOT".into(), data }
     } else if line.contains("[CAPTCHA_PAUSE]") {
         let step_id = line.split("step_id").nth(1)
             .and_then(|s| s.split('"').nth(3))
-            .unwrap_or("unknown")
-            .to_string();
-        EngineEvent { event_type: "CAPTCHA_PAUSE".into(), data: json!({ "step_id": step_id, "log": line }) }
+            .unwrap_or("unknown").to_string();
+        EngineEvent { event_type: "CAPTCHA_PAUSE".into(), data: json!({ "step_id": step_id }) }
     } else if line.contains("[ERROR]") {
         EngineEvent { event_type: "ERROR".into(), data: json!({ "message": line }) }
     } else {

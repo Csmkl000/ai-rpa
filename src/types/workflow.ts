@@ -4,7 +4,8 @@ export type StepType =
   | "EXTRACT"
   | "OBSERVE"
   | "EXTRACT_LOOP"
-  | "AUTONOMOUS_AGENT";
+  | "AUTONOMOUS_AGENT"
+  | "CONDITION";
 
 export interface ExtractField {
   name: string;
@@ -22,6 +23,9 @@ export interface WorkflowStep {
   maxPages?: number;
   task?: string;
   maxSteps?: number;
+  condition?: string;
+  trueStepId?: string;
+  falseStepId?: string;
 }
 
 export interface Workflow {

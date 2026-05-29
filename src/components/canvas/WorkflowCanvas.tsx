@@ -20,6 +20,7 @@ import { ActNode } from "./nodes/ActNode";
 import { ExtractNode } from "./nodes/ExtractNode";
 import { LoopNode } from "./nodes/LoopNode";
 import { AgentNode } from "./nodes/AgentNode";
+import { ConditionNode } from "./nodes/ConditionNode";
 
 const nodeTypes = {
   goto: GotoNode,
@@ -27,6 +28,7 @@ const nodeTypes = {
   extract: ExtractNode,
   loop: LoopNode,
   agent: AgentNode,
+  condition: ConditionNode,
 };
 
 const TYPE_TO_NODE: Record<string, string> = {
@@ -36,6 +38,7 @@ const TYPE_TO_NODE: Record<string, string> = {
   OBSERVE: "act",
   EXTRACT_LOOP: "loop",
   AUTONOMOUS_AGENT: "agent",
+  CONDITION: "condition",
 };
 
 function buildFlowData(

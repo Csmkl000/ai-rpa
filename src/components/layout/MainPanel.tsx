@@ -11,6 +11,7 @@ const STEP_TYPES: { type: StepType; label: string; icon: string }[] = [
   { type: "EXTRACT", label: "提取数据", icon: "📊" },
   { type: "OBSERVE", label: "观察页面", icon: "👁" },
   { type: "EXTRACT_LOOP", label: "循环提取", icon: "🔄" },
+  { type: "CONDITION", label: "条件分支", icon: "🔀" },
   { type: "AUTONOMOUS_AGENT", label: "AI 智能体", icon: "🤖" },
 ];
 
@@ -29,6 +30,7 @@ export function MainPanel() {
       EXTRACT: "提取数据",
       OBSERVE: "观察页面",
       EXTRACT_LOOP: "循环提取",
+      CONDITION: "条件分支",
       AUTONOMOUS_AGENT: "AI 智能体",
     };
     addStep({
