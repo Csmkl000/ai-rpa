@@ -1,6 +1,4 @@
 // 对话式 AI 执行引擎
-// 用户输入一句话 → LLM 理解意图 + 页面状态 → 生成一条指令
-
 import OpenAI from "openai";
 import type { Stagehand } from "@browserbasehq/stagehand";
 
@@ -9,26 +7,42 @@ interface ChatStep {
   instruction?: string;
   value?: string;
   fields?: Array<{ name: string; type: string }>;
-  extractInstruction?: string;
-  condition?: string;
   done?: boolean;
   message?: string;
 }
 
-const SYSTEM_PROMPT = `你是一个浏览器自动化助手。用户会用自然语言告诉你下一步要做什么，你需要输出一条可执行的指令。
+const SYSTEM_PROMPT = `你是一个浏览器自动化助手。用户会用自然语言告诉你下一步要做什么。
 
-可用指令类型:
-- ACT: 点击/输入/选择操作。格式: { "type": "ACT", "instruction": "自然语言描述" }
-- EXTRACT: 提取页面数据。格式: { "type": "EXTRACT", "instruction": "提取什么", "fields": [{"name":"字段名","type":"string或number"}] }
-- GOTO: 打开新网页。格式: { "type": "GOTO", "value": "完整网址" }
-- DONE: 任务完成。格式: { "type": "DONE", "message": "完成说明" }
+你必须输出一个 JSON 对象，格式如下:
+{"type": "ACT", "instruction": "点击登录按钮"}
+或
+{"type": "GOTO", "value": "https://example.com"}
+或
+{"type": "EXTRACT", "instruction": "提取标题", "fields": [{"name":"title","type":"string"}]}
+或
+{"type": "DONE", "message": "任务完成"}
 
-规则:
-1. 每次只输出一条指令
-2. instruction 用中文大白话
-3. 如果用户说的不明确，输出 ACT 类型，instruction 用用户的原话
-4. 如果用户说"完成"、"好了"、"结束"，输出 DONE
-5. 只输出 JSON，不要其他文字`;
+type 的值只能是: ACT, GOTO, EXTRACT, DONE
+不要输出任何其他文字，只输出 JSON 对象。`;
+
+function extractJSON(text: string): any {
+  // 尝试直接解析
+  try { return JSON.parse(text); } catch {}
+
+  // 尝试提取 ```json ... ```
+  const codeBlock = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (codeBlock) {
+    try { return JSON.parse(codeBlock[1].trim()); } catch {}
+  }
+
+  // 尝试提取第一个 { ... }
+  const jsonMatch = text.match(/\{[\s\S]*\}/);
+  if (jsonMatch) {
+    try { return JSON.parse(jsonMatch[0]); } catch {}
+  }
+
+  throw new Error(`无法从 LLM 响应中提取 JSON: ${text.slice(0, 200)}`);
+}
 
 export async function chatGenerateStep(
   stagehand: Stagehand,
@@ -37,14 +51,12 @@ export async function chatGenerateStep(
   model: string,
   baseURL?: string
 ): Promise<ChatStep> {
-  // 获取当前页面状态
   let pageInfo = "";
   try {
     const pages = stagehand.context.pages();
     if (pages.length > 0) {
       const page = pages[pages.length - 1];
-      const url = page.url();
-      pageInfo = `当前页面: ${url}`;
+      pageInfo = `当前页面 URL: ${page.url()}`;
     }
   } catch {}
 
@@ -57,15 +69,13 @@ export async function chatGenerateStep(
       { role: "system", content: pageInfo },
       { role: "user", content: userMessage },
     ],
-    response_format: { type: "json_object" },
-    temperature: 0.3,
+    temperature: 0.2,
   });
 
   const content = response.choices[0]?.message?.content;
   if (!content) throw new Error("LLM 未返回内容");
 
-  const step: ChatStep = JSON.parse(content);
-  return step;
+  return extractJSON(content);
 }
 
 export async function chatExecuteStep(
