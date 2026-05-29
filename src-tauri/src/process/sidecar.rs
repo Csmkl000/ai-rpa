@@ -148,7 +148,13 @@ fn spawn_io_threads(app: AppHandle, mut child: std::process::Child) {
             use std::io::{BufRead, BufReader};
             for line in BufReader::new(stdout).lines() {
                 if let Ok(line) = line {
-                    engine_log!("[stdout] {}", line);
+                    // 截断过长行（如 base64 数据）
+                    let display = if line.len() > 200 {
+                        format!("{}...(已截断)", &line[..200])
+                    } else {
+                        line.clone()
+                    };
+                    engine_log!("[stdout] {}", display);
                     let _ = app_out.emit("rpa-event", parse_engine_line(&line));
                 }
             }

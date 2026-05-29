@@ -19,62 +19,65 @@ export function useEngine() {
 
   const [error, setError] = useState<string | null>(null);
   const [captchaStepId, setCaptchaStepId] = useState<string | null>(null);
-  const [screenshot, setScreenshot] = useState<string | null>(null);
 
   useEffect(() => {
     logger.info(MOD, "正在监听引擎事件...");
 
     const unlisten = listen<EngineEvent>("rpa-event", (event) => {
       const { event_type, data } = event.payload;
-      logger.debug(MOD, `收到事件: ${event_type}`, data);
       addEngineEvent(event.payload);
 
       switch (event_type) {
         case "CACHE_HIT":
           if (data.step_id) setNodeStatus(data.step_id as string, "success");
+          logger.info(MOD, "缓存命中，跳过 AI 调用");
           break;
         case "SELF_HEAL":
           if (data.step_id) setNodeStatus(data.step_id as string, "healing");
+          logger.warn(MOD, "检测到页面变动，AI 正在自动寻找新元素...");
+          break;
+        case "STEP_START":
+          if (data.step_id) setNodeStatus(data.step_id as string, "running");
+          logger.info(MOD, `${data.step || ""} ${data.instruction || data.url || ""}`.trim());
           break;
         case "ACTION_COMPLETED":
         case "STEP_COMPLETE":
           if (data.step_id) setNodeStatus(data.step_id as string, "success");
-          break;
-        case "STEP_START":
-          if (data.step_id) setNodeStatus(data.step_id as string, "running");
+          logger.success(MOD, `${data.step || "步骤"} 执行完成`);
           break;
         case "ENGINE_BOOT":
-          logger.info(MOD, "引擎启动完成", data);
+          logger.success(MOD, `引擎就绪 (${data.model || ""})`);
           break;
         case "DATA_EXTRACTED":
-          logger.info(MOD, "数据提取完成", data);
+          logger.success(MOD, "数据提取完成");
           break;
         case "AGENT_SUCCESS":
-          logger.info(MOD, "智能体任务完成", data);
+          logger.success(MOD, "智能体任务完成");
+          break;
+        case "AGENT_START":
+          logger.info(MOD, `智能体启动: ${data.task || ""}`);
           break;
         case "CAPTCHA_PAUSE":
-          // 指南 5: 人工介入握手 — 验证码/2FA 暂停
-          logger.warn(MOD, "检测到验证码，等待用户手动处理", data);
+          logger.warn(MOD, "检测到验证码，请手动处理");
           if (data.step_id) {
             setNodeStatus(data.step_id as string, "healing");
             setCaptchaStepId(data.step_id as string);
           }
           break;
-        case "SCREENSHOT":
-          // 指南 3: 浏览器预览截图
-          if (data.image) setScreenshot(data.image as string);
+        case "PAGINATION_FINISHED":
+          logger.success(MOD, `翻页抓取完成，共 ${data.totalPages || "?"} 页`);
           break;
         case "FINISHED":
-          logger.info(MOD, "工作流执行结束", data);
+          logger.success(MOD, "工作流执行完成");
           setRunning(false);
           break;
         case "ERROR":
-          logger.error(MOD, "引擎错误", data);
+          logger.error(MOD, `引擎错误: ${data.message || "未知错误"}`);
           if (data.step_id) setNodeStatus(data.step_id as string, "error");
           if (data.message) setError(data.message as string);
           break;
         default:
-          logger.debug(MOD, `未处理事件: ${event_type}`, data);
+          logger.debug(MOD, `未处理事件: ${event_type}`);
       }
     });
 
@@ -105,14 +108,14 @@ export function useEngine() {
       return;
     }
 
-    logger.info(MOD, `开始运行工作流: ${currentWorkflow.name}, ${steps.length} 步`, steps);
+    logger.info(MOD, `开始运行工作流: ${currentWorkflow.name}, ${steps.length} 步`);
 
     setError(null);
     resetNodeStatuses();
     setRunning(true);
 
     const workflowJson = JSON.stringify(currentWorkflow);
-    logger.debug(MOD, "workflowJson 长度:", workflowJson.length);
+    logger.debug(MOD, `workflowJson 长度: ${workflowJson.length}`);
 
     try {
       logger.info(MOD, "调用 invoke run_workflow...");
@@ -120,10 +123,10 @@ export function useEngine() {
         workflowJson,
         workflowId: currentWorkflow.id ?? 0,
       });
-      logger.info(MOD, "invoke 成功:", result);
+      logger.success(MOD, "任务已部署到执行引擎");
     } catch (err: any) {
       const msg = typeof err === "string" ? err : err?.message || String(err);
-      logger.error(MOD, "invoke 失败:", msg);
+      logger.error(MOD, `启动失败: ${msg}`);
       setError(msg);
       setRunning(false);
     }
@@ -136,7 +139,7 @@ export function useEngine() {
       setRunning(false);
       logger.info(MOD, "停止信号已发送");
     } catch (err: any) {
-      logger.error(MOD, "停止失败:", err);
+      logger.error(MOD, `停止失败: ${err}`);
     }
   }, [setRunning]);
 
@@ -147,9 +150,9 @@ export function useEngine() {
     setCaptchaStepId(null);
     // 通过 Tauri 命令向 bun 进程 stdin 发送继续信号
     invoke("continue_engine").catch((err) => {
-      logger.error(MOD, "发送继续信号失败:", err);
+      logger.error(MOD, `发送继续信号失败: ${err}`);
     });
   }, []);
 
-  return { runWorkflow, stopWorkflow, isRunning, error, clearError, captchaStepId, continueAfterCaptcha, screenshot };
+  return { runWorkflow, stopWorkflow, isRunning, error, clearError, captchaStepId, continueAfterCaptcha };
 }

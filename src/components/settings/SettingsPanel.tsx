@@ -19,7 +19,7 @@ export function SettingsPanel() {
   }, [settings]);
 
   const handleSave = async () => {
-    logger.info("Settings", "保存设置", { provider: local.llm_provider, model: local.llm_model });
+    logger.info("Settings", `保存设置: ${local.llm_provider} / ${local.llm_model}`);
     try {
       await updateSettings(local);
       setSettings(local);
@@ -27,7 +27,7 @@ export function SettingsPanel() {
       logger.info("Settings", "设置保存成功");
       setTimeout(() => setSaved(false), 2000);
     } catch (err: any) {
-      logger.error("Settings", "保存设置失败:", err);
+      logger.error("Settings", `保存设置失败: ${err}`);
     }
   };
 
