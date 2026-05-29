@@ -18,7 +18,6 @@ pub async fn run_workflow(
         }
     }
 
-    // Read settings from DB
     let settings_json = {
         let conn = db.0.lock().map_err(|e| e.to_string())?;
         queries::get_setting(&conn, "app_settings")?
@@ -62,7 +61,6 @@ pub async fn run_workflow(
     std::fs::create_dir_all(&cache_dir).ok();
 
     let app_clone = app.clone();
-    let state_clone = EngineState::default();
 
     tauri::async_runtime::spawn(async move {
         let result = sidecar::spawn_engine(
@@ -77,7 +75,9 @@ pub async fn run_workflow(
         )
         .await;
 
-        let mut running = state_clone.running.lock().unwrap();
+        // 用 app.state() 获取真正的全局 EngineState，重置 running
+        let engine_state = app_clone.state::<EngineState>();
+        let mut running = engine_state.running.lock().unwrap();
         *running = false;
 
         if let Err(e) = result {
@@ -87,7 +87,6 @@ pub async fn run_workflow(
             );
         }
 
-        // 无论成功失败都发 FINISHED，确保前端按钮状态重置
         let _ = app_clone.emit(
             "rpa-event",
             json!({ "event_type": "FINISHED", "data": { "code": null } }),
@@ -104,7 +103,6 @@ pub fn stop_workflow(state: State<'_, EngineState>) -> Result<String, String> {
     Ok("已发送停止信号".to_string())
 }
 
-/// 指南 5: 人工介入 — 用户完成验证码后继续执行
 #[tauri::command]
 pub fn continue_engine() -> Result<String, String> {
     let signal_file = std::env::temp_dir().join("ai-rpa-continue.signal");
