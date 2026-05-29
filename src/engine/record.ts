@@ -24,7 +24,8 @@ function parseArgs() {
       default: i++; break;
     }
   }
-  return { url, outputFile, headless: headless !== "true" };
+  // 默认有头浏览器（录制必须看到浏览器）
+  return { url, outputFile, headless: headless === "true" };
 }
 
 const RECORD_SCRIPT = `
