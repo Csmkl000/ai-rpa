@@ -11,6 +11,7 @@ pub struct AppSettings {
     pub proxy_url: Option<String>,
     pub headless: bool,
     pub cache_ttl_days: i64,
+    pub control_level: Option<String>,
 }
 
 impl Default for AppSettings {
@@ -23,6 +24,7 @@ impl Default for AppSettings {
             proxy_url: None,
             headless: true,
             cache_ttl_days: 30,
+            control_level: Some("confirm".to_string()),
         }
     }
 }

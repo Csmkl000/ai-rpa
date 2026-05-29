@@ -46,6 +46,8 @@ export interface EngineEvent {
   data: Record<string, unknown>;
 }
 
+export type ControlLevel = "auto" | "confirm" | "step";
+
 export interface AppSettings {
   llm_provider: string;
   llm_api_key: string;
@@ -54,4 +56,5 @@ export interface AppSettings {
   proxy_url?: string;
   headless: boolean;
   cache_ttl_days: number;
+  control_level: ControlLevel;
 }
