@@ -5,7 +5,7 @@ import { useWorkflowStore } from "../stores/workflowStore";
 import { logger } from "../lib/logger";
 import type { EngineEvent, WorkflowStep } from "../types/workflow";
 
-const MOD = "Recorder";
+const MOD = "录制";
 
 export function useRecorder() {
   const [isRecording, setIsRecording] = useState(false);
@@ -16,21 +16,17 @@ export function useRecorder() {
   useEffect(() => {
     const unlisten = listen<EngineEvent>("rpa-event", (event) => {
       const { event_type, data } = event.payload;
-      if (event_type === "RECORDED_ACTION") {
-        const log = data.log as string;
-        const jsonStr = log.split("[ACTION_COMPLETED] ")[1];
-        if (jsonStr) {
-          try {
-            const parsed = JSON.parse(jsonStr);
-            const step: Partial<WorkflowStep> = {
-              id: crypto.randomUUID(),
-              type: "ACT",
-              label: parsed.instruction || "录制操作",
-              instruction: parsed.instruction,
-            };
-            setRecordedSteps((prev) => [...prev, step]);
-            logger.info(MOD, `录制: ${parsed.instruction}`);
-          } catch {}
+      if (event_type === "RECORDED_ACTION" && data.instruction) {
+        const instruction = data.instruction as string;
+        if (instruction && instruction.length > 0) {
+          const step: Partial<WorkflowStep> = {
+            id: crypto.randomUUID(),
+            type: "ACT",
+            label: instruction,
+            instruction,
+          };
+          setRecordedSteps((prev) => [...prev, step]);
+          logger.success(MOD, instruction);
         }
       }
     });
@@ -50,7 +46,7 @@ export function useRecorder() {
         baseUrl: settings.base_url || "",
       });
     } catch (err: any) {
-      logger.error(MOD, "启动录制失败:", err);
+      logger.error(MOD, `启动录制失败: ${err}`);
       setIsRecording(false);
     }
   }, [settings]);
@@ -58,11 +54,10 @@ export function useRecorder() {
   const stopRecording = useCallback(async () => {
     logger.info(MOD, "停止录制");
     setIsRecording(false);
-
     try {
       await invoke("stop_recording");
     } catch (err: any) {
-      logger.error(MOD, "停止录制失败:", err);
+      logger.error(MOD, `停止录制失败: ${err}`);
     }
   }, []);
 
@@ -77,7 +72,7 @@ export function useRecorder() {
         });
       }
     }
-    logger.info(MOD, `已将 ${recordedSteps.length} 个录制步骤添加到工作流`);
+    logger.success(MOD, `已添加 ${recordedSteps.length} 个步骤到工作流`);
     setRecordedSteps([]);
   }, [recordedSteps, addStep]);
 

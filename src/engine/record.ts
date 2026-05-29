@@ -1,22 +1,13 @@
 // 指南 5: 智能录制引擎
 // 独立进程: 打开浏览器 → 注入录制脚本 → 用户操作 → 输出语义指令
 
-import { randomUUID } from "crypto";
 import { createStagehand } from "./stagehand/client";
 import { getRecordScript, getStartRecordingScript, getGetActionsScript } from "./utils/recorder";
 import { emit } from "./protocol/messages";
 import { writeFileSync } from "fs";
+import { randomUUID } from "crypto";
 
-interface RecordArgs {
-  url: string;
-  outputFile: string;
-  apiKey: string;
-  model: string;
-  baseURL: string;
-  proxyUrl: string;
-}
-
-function parseArgs(): RecordArgs {
+function parseArgs() {
   const args = process.argv.slice(2);
   let url = "";
   let outputFile = "";
@@ -43,7 +34,8 @@ function parseArgs(): RecordArgs {
 async function runRecorder() {
   const { url, outputFile, apiKey, model, baseURL, proxyUrl } = parseArgs();
 
-  // 录制模式必须有头浏览器
+  console.log(`[RECORD] 启动录制模式, url=${url}`);
+
   const stagehand = await createStagehand({
     cacheDir: "/tmp/stagehand-record-cache",
     apiKey,
@@ -54,16 +46,27 @@ async function runRecorder() {
   });
 
   // 导航到目标页面
+  console.log(`[RECORD] 正在打开页面...`);
   const page = await stagehand.context.newPage(url || "about:blank");
-  await page.waitForLoadState("domcontentloaded");
 
-  // 注入录制脚本
-  await page.evaluate(getRecordScript());
-  await page.evaluate(getStartRecordingScript());
+  // 等待页面加载
+  await new Promise(r => setTimeout(r, 2000));
+
+  // 注入录制脚本 - 使用 addScriptTag 方式更可靠
+  console.log(`[RECORD] 注入录制脚本...`);
+  try {
+    const recordScript = getRecordScript() + "\n" + getStartRecordingScript();
+    await page.evaluate(recordScript);
+    console.log(`[RECORD] 脚本注入成功`);
+  } catch (e: any) {
+    console.error(`[RECORD] 脚本注入失败: ${e.message}`);
+    console.error(`[RECORD] 请检查浏览器是否正常打开`);
+  }
 
   emit("ENGINE_BOOT", { message: "录制模式已启动，请在浏览器中操作", url });
+  console.log(`[RECORD] 开始监听用户操作...`);
 
-  // 轮询录制结果，每秒检查一次
+  // 轮询录制结果
   const actions: any[] = [];
   let lastCount = 0;
 
@@ -77,34 +80,32 @@ async function runRecorder() {
         const newActions = current.slice(lastCount);
         for (const action of newActions) {
           actions.push(action);
+          console.log(`[RECORD] 录制: ${action.instruction}`);
           emit("ACTION_COMPLETED", { instruction: action.instruction });
         }
         lastCount = current.length;
       }
-    } catch {
-      // 页面可能正在导航
+    } catch (e: any) {
+      // 页面导航中，忽略
     }
-  }, 1000);
+  }, 500);
 
-  // 等待进程退出信号
+  // 等待退出信号
   await new Promise<void>((resolve) => {
     process.on("SIGTERM", () => resolve());
     process.on("SIGINT", () => resolve());
-
-    // 也监听 stdin 的 "stop" 命令
     process.stdin.on("data", (data) => {
-      const cmd = data.toString().trim();
-      if (cmd === "stop") resolve();
+      if (data.toString().trim() === "stop") resolve();
     });
   });
 
   clearInterval(poll);
 
-  // 保存录制结果
+  // 保存结果
   const result = {
     url,
-    actions: actions.map((a, i) => ({
-      id: crypto.randomUUID(),
+    actions: actions.map((a) => ({
+      id: randomUUID(),
       type: "ACT",
       label: a.instruction,
       instruction: a.instruction,
@@ -115,6 +116,7 @@ async function runRecorder() {
     writeFileSync(outputFile, JSON.stringify(result, null, 2));
   }
 
+  console.log(`[RECORD_DONE] 录制完成，共 ${result.actions.length} 步`);
   console.log(`[RECORD_DONE] ${JSON.stringify(result)}`);
 
   await stagehand.close();
