@@ -1,5 +1,6 @@
 // 指南 5: 智能录制引擎
-import { createStagehand } from "./stagehand/client";
+// 只需要浏览器 + JS 注入，不需要 Stagehand/LLM
+
 import { emit } from "./protocol/messages";
 import { writeFileSync } from "fs";
 import { randomUUID } from "crypto";
@@ -7,26 +8,22 @@ import { randomUUID } from "crypto";
 declare global {
   interface Window {
     __RECORDED_ACTIONS__?: Array<{ instruction: string; ts: number }>;
-    __RECORDING_ACTIVE__?: boolean;
-    __STAGEHAND_RECORDER__?: boolean;
   }
 }
 
 function parseArgs() {
   const args = process.argv.slice(2);
-  let url = "", outputFile = "", apiKey = "", model = "gpt-4o", baseURL = "", proxyUrl = "";
+  let url = "", outputFile = "";
   for (let i = 0; i < args.length; i++) {
     const next = args[i + 1];
     switch (args[i]) {
       case "--url": url = next; i++; break;
       case "--output": outputFile = next; i++; break;
-      case "--api-key": apiKey = next; i++; break;
-      case "--model": model = next; i++; break;
-      case "--base-url": baseURL = next; i++; break;
-      case "--proxy": proxyUrl = next; i++; break;
+      // 忽略其他参数（录制不需要）
+      default: i++; break;
     }
   }
-  return { url, outputFile, apiKey, model, baseURL, proxyUrl };
+  return { url, outputFile };
 }
 
 const RECORD_SCRIPT = `
@@ -83,42 +80,23 @@ const RECORD_SCRIPT = `
 `;
 
 async function runRecorder() {
-  const { url, outputFile, apiKey, model, baseURL, proxyUrl } = parseArgs();
-
+  const { url, outputFile } = parseArgs();
   console.log(`[RECORD] 启动录制, url=${url}`);
 
-  const stagehand = await createStagehand({
-    cacheDir: "/tmp/stagehand-record-cache",
-    apiKey,
-    model,
-    baseURL,
-    proxyUrl,
-    headless: false,
-  });
+  // 直接用 Playwright，不需要 Stagehand/LLM
+  const { chromium } = require("playwright-core");
+  const browser = await chromium.launch({ headless: false });
+  const page = await browser.newPage();
 
-  // 使用 Stagehand 的默认 page（已由 init 打开）
-  const page = stagehand.context.pages()[0];
-  if (!page) {
-    console.error("[RECORD] 没有可用的页面");
-    process.exit(1);
-  }
-
-  // 导航
-  await page.goto(url);
-  await new Promise(r => setTimeout(r, 2000));
+  await page.goto(url || "about:blank", { waitUntil: "domcontentloaded" });
+  await page.waitForTimeout(1500);
 
   // 注入录制脚本
   console.log(`[RECORD] 注入录制脚本...`);
-  try {
-    await page.evaluate(RECORD_SCRIPT);
-    console.log(`[RECORD] 脚本注入成功`);
-  } catch (e: any) {
-    console.error(`[RECORD] 脚本注入失败: ${e.message}`);
-    process.exit(1);
-  }
+  await page.evaluate(RECORD_SCRIPT);
+  console.log(`[RECORD] 脚本注入成功，请在浏览器中操作`);
 
-  emit("ENGINE_BOOT", { message: "录制模式已启动，请在浏览器中操作", url });
-  console.log(`[RECORD] 请在浏览器中操作...`);
+  emit("ENGINE_BOOT", { message: "录制已启动，请在浏览器中操作", url });
 
   // 轮询
   const actions: any[] = [];
@@ -138,9 +116,7 @@ async function runRecorder() {
         }
         lastCount = current.length;
       }
-    } catch (e: any) {
-      // 页面导航中，忽略
-    }
+    } catch {}
   }, 500);
 
   // 等待退出
@@ -162,15 +138,12 @@ async function runRecorder() {
   }));
 
   const finalResult = { url, actions: mappedActions };
-
-  if (outputFile) {
-    writeFileSync(outputFile, JSON.stringify(finalResult, null, 2));
-  }
+  if (outputFile) writeFileSync(outputFile, JSON.stringify(finalResult, null, 2));
 
   console.log(`[RECORD_DONE] 录制完成，共 ${mappedActions.length} 步`);
   console.log(`[RECORD_DONE] ${JSON.stringify(finalResult)}`);
 
-  await stagehand.close();
+  await browser.close();
   process.exit(0);
 }
 

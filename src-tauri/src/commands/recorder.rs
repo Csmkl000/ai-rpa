@@ -4,14 +4,11 @@ use tauri::{AppHandle, Emitter, Manager};
 
 static mut RECORD_CHILD: Option<std::process::Child> = None;
 
-/// 指南 5: 启动智能录制模式
+/// 指南 5: 启动智能录制模式（不需要 API Key，纯浏览器操作）
 #[tauri::command]
 pub async fn start_recording(
     app: AppHandle,
     url: String,
-    api_key: String,
-    model: String,
-    base_url: String,
 ) -> Result<String, String> {
     let output_file = std::env::temp_dir().join("ai-rpa-recording.json");
     let engine_script = find_record_script(&app)?;
@@ -23,12 +20,6 @@ pub async fn start_recording(
         url,
         "--output".to_string(),
         output_file.to_string_lossy().to_string(),
-        "--api-key".to_string(),
-        api_key,
-        "--model".to_string(),
-        model,
-        "--base-url".to_string(),
-        base_url,
     ];
 
     eprintln!("[RECORDER] 启动: {} {}", bun_path, args.join(" "));

@@ -11,7 +11,6 @@ export function useRecorder() {
   const [isRecording, setIsRecording] = useState(false);
   const [recordedSteps, setRecordedSteps] = useState<Partial<WorkflowStep>[]>([]);
   const addStep = useWorkflowStore((s) => s.addStep);
-  const settings = useWorkflowStore((s) => s.settings);
 
   useEffect(() => {
     const unlisten = listen<EngineEvent>("rpa-event", (event) => {
@@ -39,17 +38,12 @@ export function useRecorder() {
     setRecordedSteps([]);
 
     try {
-      await invoke("start_recording", {
-        url,
-        apiKey: settings.llm_api_key,
-        model: settings.llm_model,
-        baseUrl: settings.base_url || "",
-      });
+      await invoke("start_recording", { url });
     } catch (err: any) {
       logger.error(MOD, `启动录制失败: ${err}`);
       setIsRecording(false);
     }
-  }, [settings]);
+  }, []);
 
   const stopRecording = useCallback(async () => {
     logger.info(MOD, "停止录制");
