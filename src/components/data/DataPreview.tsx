@@ -13,7 +13,7 @@ export function DataPreview() {
 
   if (extractedData.length === 0) {
     return (
-      <div className="h-full flex items-center justify-center text-gray-500 text-sm">
+      <div className="h-full flex items-center justify-center text-gray-400 text-sm">
         运行包含"提取数据"的工作流后，数据将在此显示
       </div>
     );
@@ -42,54 +42,44 @@ export function DataPreview() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "extracted_data.csv";
+    a.download = "data.csv";
     a.click();
     URL.revokeObjectURL(url);
   };
 
   return (
-    <div className="h-full flex flex-col p-4">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold">
-          提取数据预览 ({extractedData.length} 条)
-        </h3>
+    <div className="h-full flex flex-col p-3">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-xs text-gray-500">{extractedData.length} 条数据</span>
         <div className="flex gap-2">
-          <button
-            onClick={() => setShowRaw(!showRaw)}
-            className="text-xs text-gray-400 hover:text-white px-2 py-1 bg-gray-800 rounded"
-          >
-            {showRaw ? "表格视图" : "原始 JSON"}
+          <button onClick={() => setShowRaw(!showRaw)} className="text-xs text-gray-500 hover:text-gray-700">
+            {showRaw ? "表格" : "JSON"}
           </button>
-          <button
-            onClick={exportCSV}
-            className="text-xs text-blue-400 hover:text-blue-300 px-2 py-1 bg-blue-600/20 rounded"
-          >
+          <button onClick={exportCSV} className="text-xs text-blue-500 hover:text-blue-600">
             导出 CSV
           </button>
         </div>
       </div>
 
-      <div className="flex-1 overflow-auto border border-gray-800 rounded-lg">
+      <div className="flex-1 overflow-auto border border-gray-200 rounded-lg">
         {showRaw ? (
-          <pre className="p-3 text-xs text-gray-300 font-mono whitespace-pre-wrap">
+          <pre className="p-3 text-xs text-gray-600 font-mono whitespace-pre-wrap">
             {JSON.stringify(extractedData, null, 2)}
           </pre>
         ) : (
           <table className="w-full text-xs">
             <thead>
-              <tr className="bg-gray-800 sticky top-0">
+              <tr className="bg-gray-50 sticky top-0">
                 {columns.map((col) => (
-                  <th key={col} className="px-3 py-2 text-left text-gray-400 font-medium">
-                    {col}
-                  </th>
+                  <th key={col} className="px-3 py-2 text-left text-gray-500 font-medium">{col}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {extractedData.map((row, i) => (
-                <tr key={i} className="border-t border-gray-800 hover:bg-gray-800/50">
+                <tr key={i} className="border-t border-gray-100 hover:bg-gray-50">
                   {columns.map((col) => (
-                    <td key={col} className="px-3 py-2 text-gray-300">
+                    <td key={col} className="px-3 py-2 text-gray-700">
                       {String((row as Record<string, unknown>)[col] ?? "")}
                     </td>
                   ))}

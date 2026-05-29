@@ -11,13 +11,13 @@ interface GotoNodeData {
   [key: string]: unknown;
 }
 
-const STATUS_COLORS: Record<NodeStatus, string> = {
-  idle: "border-gray-600",
-  running: "border-yellow-500 shadow-yellow-500/30 shadow-lg",
-  success: "border-green-500 shadow-green-500/30 shadow-lg",
-  error: "border-red-500 shadow-red-500/30 shadow-lg",
-  healing: "border-orange-500 shadow-orange-500/30 shadow-lg animate-pulse",
-  skipped: "border-gray-500 opacity-50",
+const STATUS_BORDER: Record<NodeStatus, string> = {
+  idle: "border-gray-200",
+  running: "border-yellow-400 shadow-yellow-200 shadow-lg",
+  success: "border-green-400 shadow-green-200 shadow-lg",
+  error: "border-red-400 shadow-red-200 shadow-lg",
+  healing: "border-orange-400 shadow-orange-200 shadow-lg animate-pulse",
+  skipped: "border-gray-200 opacity-50",
 };
 
 export function GotoNode({ data }: NodeProps) {
@@ -26,46 +26,23 @@ export function GotoNode({ data }: NodeProps) {
   const [url, setUrl] = useState(d.value || "");
 
   return (
-    <div
-      className={`bg-gray-800 border-2 ${STATUS_COLORS[d.status]} rounded-xl p-4 min-w-[280px]`}
-      onDoubleClick={() => setEditing(true)}
-    >
-      <Handle type="target" position={Position.Top} className="!bg-gray-500" />
-
+    <div className={`bg-white border-2 ${STATUS_BORDER[d.status]} rounded-xl p-4 min-w-[260px] shadow-sm`}
+      onDoubleClick={() => setEditing(true)}>
+      <Handle type="target" position={Position.Top} className="!bg-gray-300" />
       <div className="flex items-center gap-2 mb-2">
-        <span className="text-lg">🌐</span>
-        <span className="text-sm font-semibold">{d.label}</span>
-        <button
-          onClick={d.onRemove}
-          className="ml-auto text-gray-500 hover:text-red-400 text-xs"
-        >
-          ✕
-        </button>
+        <span>🌐</span>
+        <span className="text-sm font-semibold text-gray-800">{d.label}</span>
+        <button onClick={d.onRemove} className="ml-auto text-gray-300 hover:text-red-400 text-xs">✕</button>
       </div>
-
       {editing ? (
-        <input
-          autoFocus
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-          onBlur={() => {
-            d.onUpdate({ value: url });
-            setEditing(false);
-          }}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              d.onUpdate({ value: url });
-              setEditing(false);
-            }
-          }}
-          className="w-full bg-gray-700 border border-gray-600 rounded px-2 py-1 text-xs focus:outline-none focus:border-blue-500"
-          placeholder="https://example.com"
-        />
+        <input autoFocus value={url} onChange={(e) => setUrl(e.target.value)}
+          onBlur={() => { d.onUpdate({ value: url }); setEditing(false); }}
+          className="w-full border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+          placeholder="https://example.com" />
       ) : (
-        <p className="text-xs text-gray-400 truncate">{d.value || "双击输入网址..."}</p>
+        <p className="text-xs text-gray-500 truncate">{d.value || "双击输入网址..."}</p>
       )}
-
-      <Handle type="source" position={Position.Bottom} className="!bg-gray-500" />
+      <Handle type="source" position={Position.Bottom} className="!bg-gray-300" />
     </div>
   );
 }

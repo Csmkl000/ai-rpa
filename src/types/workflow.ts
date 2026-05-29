@@ -32,6 +32,8 @@ export interface Workflow {
   id?: number;
   name: string;
   steps: WorkflowStep[];
+  created_at?: string;
+  updated_at?: string;
 }
 
 export type NodeStatus = "idle" | "running" | "success" | "error" | "healing" | "skipped";

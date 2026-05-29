@@ -114,7 +114,7 @@ export function WorkflowCanvas() {
         onConnect={onConnect}
         nodeTypes={nodeTypes}
         fitView
-        colorMode="dark"
+        colorMode="light"
         defaultEdgeOptions={{
           type: "smoothstep",
           style: { stroke: "#6366f1" },
