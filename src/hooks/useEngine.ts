@@ -18,6 +18,7 @@ export function useEngine() {
   } = useWorkflowStore();
 
   const [error, setError] = useState<string | null>(null);
+  const [captchaStepId, setCaptchaStepId] = useState<string | null>(null);
 
   useEffect(() => {
     logger.info(MOD, "正在监听引擎事件...");
@@ -49,6 +50,14 @@ export function useEngine() {
           break;
         case "AGENT_SUCCESS":
           logger.info(MOD, "智能体任务完成", data);
+          break;
+        case "CAPTCHA_PAUSE":
+          // 指南 5: 人工介入握手 — 验证码/2FA 暂停
+          logger.warn(MOD, "检测到验证码，等待用户手动处理", data);
+          if (data.step_id) {
+            setNodeStatus(data.step_id as string, "healing");
+            setCaptchaStepId(data.step_id as string);
+          }
           break;
         case "FINISHED":
           logger.info(MOD, "工作流执行结束", data);
@@ -128,5 +137,14 @@ export function useEngine() {
 
   const clearError = useCallback(() => setError(null), []);
 
-  return { runWorkflow, stopWorkflow, isRunning, error, clearError };
+  const continueAfterCaptcha = useCallback(() => {
+    logger.info(MOD, "用户确认验证码处理完成，继续执行");
+    setCaptchaStepId(null);
+    // 通过 Tauri 命令向 bun 进程 stdin 发送继续信号
+    invoke("continue_engine").catch((err) => {
+      logger.error(MOD, "发送继续信号失败:", err);
+    });
+  }, []);
+
+  return { runWorkflow, stopWorkflow, isRunning, error, clearError, captchaStepId, continueAfterCaptcha };
 }

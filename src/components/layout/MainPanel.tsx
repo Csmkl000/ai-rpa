@@ -14,7 +14,7 @@ const STEP_TYPES: { type: StepType; label: string; icon: string }[] = [
 
 export function MainPanel() {
   const currentWorkflow = useWorkflowStore((s) => s.currentWorkflow);
-  const { runWorkflow, stopWorkflow, isRunning, error, clearError } = useEngine();
+  const { runWorkflow, stopWorkflow, isRunning, error, clearError, captchaStepId, continueAfterCaptcha } = useEngine();
   const addStep = useWorkflowStore((s) => s.addStep);
 
   const handleAddStep = (type: StepType) => {
@@ -103,6 +103,24 @@ export function MainPanel() {
           <span className="text-red-300">{error}</span>
           <button onClick={clearError} className="text-red-400 hover:text-red-300 text-xs">
             关闭
+          </button>
+        </div>
+      )}
+
+      {/* 指南 5: 验证码/2FA 人工介入对话框 */}
+      {captchaStepId && (
+        <div className="bg-yellow-900/50 border-b border-yellow-700 px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="text-yellow-400 text-lg">⚠</span>
+            <span className="text-yellow-200 text-sm">
+              检测到验证码或双重验证，请在浏览器中手动完成验证
+            </span>
+          </div>
+          <button
+            onClick={continueAfterCaptcha}
+            className="px-4 py-1.5 bg-yellow-600 hover:bg-yellow-500 rounded text-sm font-medium transition-colors"
+          >
+            我已验证，继续
           </button>
         </div>
       )}

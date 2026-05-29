@@ -11,6 +11,7 @@ export type EngineEventType =
   | "AGENT_FAILED"
   | "STEP_START"
   | "STEP_COMPLETE"
+  | "CAPTCHA_PAUSE"
   | "ERROR"
   | "EXECUTION_CRASH";
 
@@ -19,10 +20,20 @@ export function emit(type: EngineEventType, data?: Record<string, unknown>) {
   console.log(msg);
 }
 
-export function emitData(data: unknown) {
-  console.log(`[DATA_RECORD] ${JSON.stringify(data)}`);
+export function emitStep(type: EngineEventType, stepId: string, data?: Record<string, unknown>) {
+  emit(type, { step_id: stepId, ...data });
 }
 
-export function emitError(message: string) {
-  console.error(`[ERROR] ${message}`);
+export function emitData(data: unknown, stepId?: string) {
+  const payload = stepId ? { step_id: stepId, data } : data;
+  console.log(`[DATA_RECORD] ${JSON.stringify(payload)}`);
+}
+
+export function emitError(message: string, stepId?: string) {
+  const payload = stepId ? JSON.stringify({ step_id: stepId, message }) : message;
+  console.error(`[ERROR] ${payload}`);
+}
+
+export function emitCaptcha(stepId: string) {
+  console.log(`[CAPTCHA_PAUSE] ${JSON.stringify({ step_id: stepId })}`);
 }

@@ -97,3 +97,11 @@ pub fn stop_workflow(state: State<'_, EngineState>) -> Result<String, String> {
     *running = false;
     Ok("已发送停止信号".to_string())
 }
+
+/// 指南 5: 人工介入 — 用户完成验证码后继续执行
+#[tauri::command]
+pub fn continue_engine() -> Result<String, String> {
+    let signal_file = std::env::temp_dir().join("ai-rpa-continue.signal");
+    std::fs::write(&signal_file, "continue").map_err(|e| e.to_string())?;
+    Ok("已发送继续信号".to_string())
+}

@@ -80,6 +80,7 @@ pub async fn spawn_engine(
         .args(&args)
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
+        .stdin(std::process::Stdio::piped())
         .spawn()
     {
         Ok(c) => {
@@ -219,6 +220,12 @@ fn parse_engine_line(line: &str) -> EngineEvent {
         EngineEvent { event_type: "PAGINATION_FINISHED".into(), data: json!({ "log": line }) }
     } else if line.contains("[ENGINE_BOOT]") {
         EngineEvent { event_type: "ENGINE_BOOT".into(), data: json!({ "log": line }) }
+    } else if line.contains("[CAPTCHA_PAUSE]") {
+        let step_id = line.split("step_id").nth(1)
+            .and_then(|s| s.split('"').nth(3))
+            .unwrap_or("unknown")
+            .to_string();
+        EngineEvent { event_type: "CAPTCHA_PAUSE".into(), data: json!({ "step_id": step_id, "log": line }) }
     } else if line.contains("[ERROR]") {
         EngineEvent { event_type: "ERROR".into(), data: json!({ "message": line }) }
     } else {

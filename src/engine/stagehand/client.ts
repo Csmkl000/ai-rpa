@@ -1,6 +1,7 @@
 import { Stagehand, CustomOpenAIClient } from "@browserbasehq/stagehand";
 import OpenAI from "openai";
 import { emit, emitError } from "../protocol/messages";
+import { getStealthScript } from "../utils/stealth";
 
 export interface StagehandConfig {
   cacheDir: string;
@@ -20,8 +21,6 @@ export async function createStagehand(config: StagehandConfig): Promise<Stagehan
   const rawModel = config.model || "gpt-4o";
   const modelName = rawModel.includes("/") ? rawModel.split("/").pop()! : rawModel;
 
-  // 用 CustomOpenAIClient 直接调 OpenAI 兼容 API
-  // 它用 response_format: json_object + prompt 注入 schema，比 AISdkClient 的 structured output 兼容性更好
   const openaiClient = new OpenAI({
     apiKey: config.apiKey,
     baseURL: config.baseURL || undefined,
@@ -44,6 +43,18 @@ export async function createStagehand(config: StagehandConfig): Promise<Stagehan
   });
 
   await stagehand.init();
+
+  // 指南 7.2: 注入反爬指纹伪装脚本到当前页面
+  try {
+    const context = stagehand.context;
+    const pages = context.pages();
+    for (const page of pages) {
+      await page.evaluate(getStealthScript());
+    }
+  } catch {
+    // 忽略注入失败
+  }
+
   emit("ENGINE_BOOT", {
     message: "Stagehand v3 CDP 引擎初始化完毕",
     cacheDir: config.cacheDir,

@@ -5,10 +5,11 @@ import { executeAct } from "./actions/act";
 import { executeExtract } from "./actions/extract";
 import { executeObserve } from "./actions/observe";
 import { executeAgent } from "./actions/agent";
-import { emit, emitError, emitData } from "./protocol/messages";
+import { emit, emitError, emitData, emitStep } from "./protocol/messages";
 import { generateDynamicSchema } from "./utils/schema";
 
 interface WorkflowStep {
+  id: string;
   type: "GOTO" | "ACT" | "EXTRACT" | "OBSERVE" | "EXTRACT_LOOP" | "AUTONOMOUS_AGENT";
   value?: string;
   instruction?: string;
@@ -24,15 +25,7 @@ interface Workflow {
   steps: WorkflowStep[];
 }
 
-function parseArgs(): {
-  workflow: Workflow;
-  cacheDir: string;
-  apiKey: string;
-  model: string;
-  baseURL: string;
-  proxyUrl: string;
-  headless: boolean;
-} {
+function parseArgs() {
   const args = process.argv.slice(2);
   let workflowFile = "";
   let cacheDir = "";
@@ -87,23 +80,24 @@ async function runEngine() {
   for (const step of workflow.steps) {
     switch (step.type) {
       case "GOTO":
-        await executeGoto(stagehand, { type: "GOTO", value: step.value! });
+        await executeGoto(stagehand, { type: "GOTO", id: step.id, value: step.value! });
         break;
 
       case "ACT":
-        await executeAct(stagehand, { type: "ACT", instruction: step.instruction! });
+        await executeAct(stagehand, { type: "ACT", id: step.id, instruction: step.instruction! });
         break;
 
       case "EXTRACT":
         await executeExtract(stagehand, {
           type: "EXTRACT",
+          id: step.id,
           instruction: step.instruction!,
           fields: (step.fields || []) as Array<{ name: string; type: "string" | "number" }>,
         });
         break;
 
       case "OBSERVE":
-        await executeObserve(stagehand, { type: "OBSERVE", instruction: step.instruction! });
+        await executeObserve(stagehand, { type: "OBSERVE", id: step.id, instruction: step.instruction! });
         break;
 
       case "EXTRACT_LOOP": {
@@ -119,8 +113,9 @@ async function runEngine() {
             step.extractInstruction || "提取页面中的数据",
             schema
           );
-          emitData(data);
+          emitData(data, step.id);
 
+          // 指南 4.3: observe 扫描下一页元素
           const actions = await stagehand.observe("查找跳转到下一页或翻页的交互元素");
           const nextAction = actions.find(
             (a: any) =>
@@ -131,12 +126,14 @@ async function runEngine() {
           );
 
           if (nextAction) {
+            // 指南: 1.5s-3s 随机延时模拟人工，绕过简单反爬
             const sleepTime = Math.floor(Math.random() * 1500) + 1500;
             await new Promise((r) => setTimeout(r, sleepTime));
             await stagehand.act(`点击 ${nextAction.description || nextAction}`);
             currentPage++;
           } else {
             emit("PAGINATION_FINISHED", {
+              step_id: step.id,
               message: "未发现有效的下一页元素，分页抓取安全终止",
               totalPages: currentPage,
             });
@@ -149,13 +146,14 @@ async function runEngine() {
       case "AUTONOMOUS_AGENT":
         await executeAgent(stagehand, {
           type: "AUTONOMOUS_AGENT",
+          id: step.id,
           task: step.task!,
           maxSteps: step.maxSteps,
         });
         break;
 
       default:
-        emitError(`未知的步骤类型: ${(step as any).type}`);
+        emitError(`未知的步骤类型: ${(step as any).type}`, step.id);
     }
   }
 

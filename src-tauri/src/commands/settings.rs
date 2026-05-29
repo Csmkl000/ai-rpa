@@ -44,3 +44,18 @@ pub fn update_settings(state: State<'_, DatabaseState>, settings: AppSettings) -
     let json_str = serde_json::to_string(&settings).map_err(|e| e.to_string())?;
     crate::db::queries::set_setting(&conn, "app_settings", &json_str)
 }
+
+/// 指南 7.4: 缓存自动清理
+#[tauri::command]
+pub fn cleanup_cache(state: State<'_, DatabaseState>) -> Result<usize, String> {
+    let conn = state.0.lock().map_err(|e| e.to_string())?;
+    let settings_json = crate::db::queries::get_setting(&conn, "app_settings")?;
+    let ttl_days: i64 = match settings_json {
+        Some(s) => {
+            let v: serde_json::Value = serde_json::from_str(&s).unwrap_or_default();
+            v["cache_ttl_days"].as_i64().unwrap_or(30)
+        }
+        None => 30,
+    };
+    crate::db::queries::cleanup_stale_cache(&conn, ttl_days)
+}

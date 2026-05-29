@@ -1,19 +1,17 @@
 import type { Stagehand } from "@browserbasehq/stagehand";
-import { emit } from "../protocol/messages";
+import { emitStep } from "../protocol/messages";
 
 export interface ObserveStep {
   type: "OBSERVE";
+  id: string;
   instruction: string;
 }
 
 export async function executeObserve(stagehand: Stagehand, step: ObserveStep): Promise<unknown[]> {
-  emit("STEP_START", { step: "OBSERVE", instruction: step.instruction });
+  emitStep("STEP_START", step.id, { step: "OBSERVE", instruction: step.instruction });
 
   const actions = await stagehand.observe(step.instruction);
 
-  emit("STEP_COMPLETE", {
-    step: "OBSERVE",
-    found: actions.length,
-  });
+  emitStep("STEP_COMPLETE", step.id, { step: "OBSERVE", found: actions.length });
   return actions as unknown[];
 }

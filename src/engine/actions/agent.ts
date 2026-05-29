@@ -1,14 +1,15 @@
 import type { Stagehand } from "@browserbasehq/stagehand";
-import { emit } from "../protocol/messages";
+import { emitStep, emitError } from "../protocol/messages";
 
 export interface AgentStep {
   type: "AUTONOMOUS_AGENT";
+  id: string;
   task: string;
   maxSteps?: number;
 }
 
 export async function executeAgent(stagehand: Stagehand, step: AgentStep): Promise<void> {
-  emit("AGENT_START", { task: step.task });
+  emitStep("AGENT_START", step.id, { task: step.task });
 
   const agent = stagehand.agent();
   const result = await agent.execute({
@@ -17,12 +18,13 @@ export async function executeAgent(stagehand: Stagehand, step: AgentStep): Promi
   });
 
   if (result.success) {
-    emit("AGENT_SUCCESS", {
+    emitStep("AGENT_SUCCESS", step.id, {
       task: step.task,
       actions: result.actions?.length ?? 0,
       message: result.message,
     });
   } else {
-    throw new Error(`智能体任务失败: ${result.message}`);
+    emitError(`智能体任务失败: ${result.message}`, step.id);
+    throw new Error(result.message);
   }
 }

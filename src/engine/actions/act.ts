@@ -1,19 +1,39 @@
 import type { Stagehand } from "@browserbasehq/stagehand";
-import { emit } from "../protocol/messages";
+import { emitStep, emitError } from "../protocol/messages";
+import { detectCaptcha, waitForUserContinue } from "../utils/captcha";
 
 export interface ActStep {
   type: "ACT";
+  id: string;
   instruction: string;
 }
 
 export async function executeAct(stagehand: Stagehand, step: ActStep): Promise<void> {
-  emit("STEP_START", { step: "ACT", instruction: step.instruction });
+  emitStep("STEP_START", step.id, { step: "ACT", instruction: step.instruction });
 
-  const result = await stagehand.act(step.instruction);
+  try {
+    const result = await stagehand.act(step.instruction);
+    emitStep("ACTION_COMPLETED", step.id, { instruction: step.instruction, result });
+    emitStep("STEP_COMPLETE", step.id, { step: "ACT" });
+  } catch (err: any) {
+    const msg = err?.message || String(err);
 
-  emit("ACTION_COMPLETED", {
-    instruction: step.instruction,
-    result,
-  });
-  emit("STEP_COMPLETE", { step: "ACT" });
+    // 指南 5: 检测是否因验证码卡住
+    try {
+      const pages = stagehand.context.pages();
+      for (const page of pages) {
+        if (await detectCaptcha(page)) {
+          await waitForUserContinue(step.id);
+          // 用户完成验证后重试
+          const retryResult = await stagehand.act(step.instruction);
+          emitStep("ACTION_COMPLETED", step.id, { instruction: step.instruction, result: retryResult });
+          emitStep("STEP_COMPLETE", step.id, { step: "ACT" });
+          return;
+        }
+      }
+    } catch {}
+
+    emitError(`ACT 失败: ${msg}`, step.id);
+    throw err;
+  }
 }
