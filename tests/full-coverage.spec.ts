@@ -225,12 +225,12 @@ describe("logger 全功能", () => {
     logger.clear();
   });
 
-  test("日志包含时间戳格式 HH:MM:SS", async () => {
+  test("日志包含时间戳格式 HH:MM:SS.mmm", async () => {
     const { logger } = await import("../src/lib/logger");
     logger.clear();
     logger.info("M", "test");
     const buf = logger.getBuffer();
-    expect(buf[0].time).toMatch(/^\d{2}:\d{2}:\d{2}$/);
+    expect(buf[0].time).toMatch(/^\d{2}:\d{2}:\d{2}\.\d{3}$/);
     logger.clear();
   });
 });
