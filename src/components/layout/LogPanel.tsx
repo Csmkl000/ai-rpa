@@ -123,7 +123,7 @@ export function LogPanel() {
                 filter === lv ? "bg-gray-100 text-gray-700 font-medium" : "text-gray-400 hover:text-gray-600"
               }`}
             >
-              {lv === "all" ? "全部" : lv === "all_debug" ? "调试" : lv === "success" ? "成功" : lv.toUpperCase()}
+              {lv === "all" ? "全部" : lv === "all_debug" ? "调试" : lv === "info" ? "信息" : lv === "success" ? "成功" : lv === "warn" ? "警告" : lv === "error" ? "错误" : lv}
               {lv === "error" && errorCount > 0 && (
                 <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-red-500 text-white text-[9px] rounded-full flex items-center justify-center">
                   {errorCount > 9 ? "9+" : errorCount}
