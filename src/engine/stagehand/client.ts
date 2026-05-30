@@ -11,27 +11,23 @@ export interface StagehandConfig {
   baseURL?: string;
   headless?: boolean;
   provider?: string;
-  /** 录制模式：只开浏览器，不需要 LLM */
   recordMode?: boolean;
 }
 
 export async function createStagehand(config: StagehandConfig): Promise<Stagehand> {
   const provider = config.provider || "openai";
 
-  // 录制模式不需要 API Key
   if (!config.recordMode && provider !== "ollama" && !config.apiKey) {
     emitError("未配置 API Key。请在设置面板中填写 LLM API Key 后再运行工作流。");
     throw new Error("Missing API Key");
   }
 
-  // [Refactor: 移除硬编码 "gpt-4o"，要求调用方必须传入 model by Claude]
   if (!config.model) {
     throw new Error("未配置模型名称");
   }
   const rawModel = config.model;
   const modelName = rawModel.includes("/") ? rawModel.split("/").pop()! : rawModel;
 
-  // [Refactor: llmClient 类型从 any 改为 CustomOpenAIClient | undefined by Claude]
   let llmClient: InstanceType<typeof CustomOpenAIClient> | undefined = undefined;
 
   if (!config.recordMode) {
@@ -48,22 +44,26 @@ export async function createStagehand(config: StagehandConfig): Promise<Stagehan
     }
   }
 
-  // [Refactor: stagehandOpts 保留 any，Stagehand V3Options 类型过于复杂 by Claude]
-  const stagehandOpts: any = {
+  const stagehand = new Stagehand({
     env: "LOCAL",
     cacheDir: config.cacheDir,
-    verbose: 1,
+    verbose: 0,
+    disablePino: true,
+    logger: (line: any) => {
+      // 自定义 logger：无 ANSI，干净输出到 stdout
+      const msg = typeof line === "string" ? line : JSON.stringify(line);
+      const clean = msg.replace(/\x1b\[[0-9;]*m/g, "");
+      if (clean.trim()) {
+        console.log(`[Stagehand] ${clean}`);
+      }
+    },
     localBrowserLaunchOptions: {
       headless: config.headless !== false,
       ...(config.proxyUrl ? { proxy: { server: config.proxyUrl } } : {}),
     },
-  };
+    ...(llmClient ? { llmClient } : {}),
+  } as any);
 
-  if (llmClient) {
-    stagehandOpts.llmClient = llmClient;
-  }
-
-  const stagehand = new Stagehand(stagehandOpts);
   await stagehand.init();
 
   // 注入反爬脚本
@@ -73,7 +73,6 @@ export async function createStagehand(config: StagehandConfig): Promise<Stagehan
       for (const page of pages) {
         await page.evaluate(getStealthScript());
       }
-    // [Refactor: err 类型从 any 改为 unknown by Claude]
     } catch (e: unknown) {
       emit("LOG", { log: `反爬脚本注入失败: ${e instanceof Error ? e.message : String(e)}` });
     }

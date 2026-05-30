@@ -1,12 +1,3 @@
-// 拦截 stdout，源头清除 ANSI 转义码（Stagehand pino 日志带颜色码）
-const _origStdoutWrite = process.stdout.write.bind(process.stdout);
-process.stdout.write = (chunk: any, ...args: any[]) => {
-  if (typeof chunk === "string") {
-    chunk = chunk.replace(/\x1b\[[0-9;]*m/g, "");
-  }
-  return _origStdoutWrite(chunk, ...args);
-};
-
 import { createStagehand } from "./stagehand/client";
 import type { Stagehand } from "@browserbasehq/stagehand";
 import { executeGoto } from "./actions/goto";
