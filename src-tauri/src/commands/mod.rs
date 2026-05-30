@@ -1,4 +1,5 @@
 pub mod browser;
+pub mod chrome;
 pub mod engine;
 pub mod recorder;
 pub mod scheduler;

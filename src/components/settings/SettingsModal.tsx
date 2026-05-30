@@ -116,6 +116,19 @@ export function SettingsModal() {
             />
           </div>
 
+          {/* Chrome 路径 */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Chrome/Edge 路径</label>
+            <input
+              type="text"
+              value={local.chrome_path || ""}
+              onChange={(e) => setLocal({ ...local, chrome_path: e.target.value || undefined })}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
+              placeholder="留空自动检测"
+            />
+            <p className="text-xs text-gray-400 mt-1">留空自动查找系统 Chrome/Edge，也可手动指定路径</p>
+          </div>
+
           {/* 代理 */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">代理地址</label>

@@ -19,3 +19,15 @@ impl Default for EngineState {
         }
     }
 }
+
+pub struct ChromeState {
+    pub child: Mutex<Option<std::process::Child>>,
+}
+
+impl Default for ChromeState {
+    fn default() -> Self {
+        Self {
+            child: Mutex::new(None),
+        }
+    }
+}

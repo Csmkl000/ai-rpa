@@ -35,6 +35,7 @@ fn main() {
 
             app.manage(db::DatabaseState(std::sync::Mutex::new(conn)));
             app.manage(process::EngineState::default());
+            app.manage(process::ChromeState::default());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -54,6 +55,8 @@ fn main() {
             commands::scheduler::delete_schedule,
             commands::scheduler::toggle_schedule,
             commands::browser::check_browser,
+            commands::chrome::launch_chrome,
+            commands::chrome::close_chrome,
         ])
         .run(tauri::generate_context!())
         .expect("AI-RPA 启动失败");
