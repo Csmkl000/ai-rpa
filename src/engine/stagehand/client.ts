@@ -50,11 +50,16 @@ export async function createStagehand(config: StagehandConfig): Promise<Stagehan
     verbose: 0,
     disablePino: true,
     logger: (line: any) => {
-      // 自定义 logger：无 ANSI，干净输出到 stdout
-      const msg = typeof line === "string" ? line : JSON.stringify(line);
-      const clean = msg.replace(/\x1b\[[0-9;]*m/g, "");
-      if (clean.trim()) {
-        console.log(`[Stagehand] ${clean}`);
+      // 只输出 message 字段，丢弃冗长的 JSON 对象
+      if (typeof line === "string") {
+        const clean = line.replace(/\x1b\[[0-9;]*m/g, "").trim();
+        if (clean) console.log(`[Stagehand] ${clean}`);
+      } else if (line && typeof line === "object") {
+        const msg = line.message || "";
+        const cat = line.category || "";
+        if (msg) {
+          console.log(`[Stagehand] ${cat ? `[${cat}] ` : ""}${msg}`);
+        }
       }
     },
     localBrowserLaunchOptions: {
