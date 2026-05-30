@@ -13,7 +13,7 @@ const MAX_LOGS = 1000;
 
 export function LogPanel() {
   const [logs, setLogs] = useState<LogEntry[]>([]);
-  const [filter, setFilter] = useState<LogLevel | "all">("all");
+  const [filter, setFilter] = useState<LogLevel | "all" | "all_debug">("all");
   const [moduleFilter, setModuleFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -62,7 +62,12 @@ export function LogPanel() {
 
   const filtered = useMemo(() => {
     let result = logs;
-    if (filter !== "all") result = result.filter((l) => l.level === filter);
+    // "all" 默认隐藏 debug 级别（IO 原始日志），"all_debug" 显示全部
+    if (filter === "all") {
+      result = result.filter((l) => l.level !== "debug");
+    } else if (filter !== "all_debug") {
+      result = result.filter((l) => l.level === filter);
+    }
     if (moduleFilter !== "all") result = result.filter((l) => l.module === moduleFilter);
     if (search) {
       const q = search.toLowerCase();
@@ -110,7 +115,7 @@ export function LogPanel() {
 
         {/* 级别过滤 */}
         <div className="flex gap-0.5">
-          {(["all", "info", "success", "warn", "error"] as const).map((lv) => (
+          {(["all", "all_debug", "info", "success", "warn", "error"] as const).map((lv) => (
             <button
               key={lv}
               onClick={() => setFilter(lv)}
@@ -118,7 +123,7 @@ export function LogPanel() {
                 filter === lv ? "bg-gray-100 text-gray-700 font-medium" : "text-gray-400 hover:text-gray-600"
               }`}
             >
-              {lv === "all" ? "全部" : lv === "success" ? "成功" : lv.toUpperCase()}
+              {lv === "all" ? "全部" : lv === "all_debug" ? "调试" : lv === "success" ? "成功" : lv.toUpperCase()}
               {lv === "error" && errorCount > 0 && (
                 <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-red-500 text-white text-[9px] rounded-full flex items-center justify-center">
                   {errorCount > 9 ? "9+" : errorCount}
