@@ -12,9 +12,11 @@ pub async fn run_workflow(
     _workflow_id: i64,
 ) -> Result<String, String> {
     {
-        let running = state.running.lock().map_err(|e| e.to_string())?;
+        let mut running = state.running.lock().map_err(|e| e.to_string())?;
         if *running {
-            return Err("已有任务在运行中，请先停止当前任务".to_string());
+            // 之前运行可能异常退出，强制重置
+            eprintln!("[ENGINE] 检测到 running=true，强制重置");
+            *running = false;
         }
     }
 

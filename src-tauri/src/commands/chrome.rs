@@ -20,12 +20,8 @@ pub async fn launch_chrome(
         find_chrome()?
     };
 
-    // 用 AppData 下的专用目录作为 Chrome profile，避免锁定用户正在使用的 Chrome
-    let profile_dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| e.to_string())?
-        .join("chrome-profile");
+    // 使用用户本机 Chrome 的真实 profile，保留登录状态和数据
+    let profile_dir = find_chrome_profile()?;
 
     let debug_port = 9222;
 
@@ -91,6 +87,40 @@ async fn wait_for_cdp(port: u16) -> Result<String, String> {
         tokio::time::sleep(std::time::Duration::from_millis(500)).await;
     }
     Err("Chrome CDP 端口超时（15秒）".to_string())
+}
+
+fn find_chrome_profile() -> Result<std::path::PathBuf, String> {
+    let home = std::env::var("USERPROFILE")
+        .or_else(|_| std::env::var("HOME"))
+        .unwrap_or_default();
+
+    let candidates = if cfg!(target_os = "windows") {
+        vec![
+            format!("{}\\AppData\\Local\\Google\\Chrome\\User Data", home),
+            format!("{}\\AppData\\Local\\Microsoft\\Edge\\User Data", home),
+        ]
+    } else if cfg!(target_os = "macos") {
+        vec![
+            format!("{}/Library/Application Support/Google/Chrome", home),
+            format!("{}/Library/Application Support/Microsoft Edge", home),
+        ]
+    } else {
+        vec![
+            format!("{}/.config/google-chrome", home),
+            format!("{}/.config/microsoft-edge", home),
+        ]
+    };
+
+    for c in &candidates {
+        if std::path::Path::new(c).exists() {
+            return Ok(std::path::PathBuf::from(c));
+        }
+    }
+
+    // 找不到则用 AppData 下的独立目录
+    let fallback = std::env::temp_dir().join("ai-rpa-chrome-profile");
+    std::fs::create_dir_all(&fallback).ok();
+    Ok(fallback)
 }
 
 fn find_chrome() -> Result<String, String> {
