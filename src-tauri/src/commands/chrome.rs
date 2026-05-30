@@ -20,8 +20,13 @@ pub async fn launch_chrome(
         find_chrome()?
     };
 
-    // 使用用户本机 Chrome 的真实 profile，保留登录状态和数据
-    let profile_dir = find_chrome_profile()?;
+    // 使用独立 profile 目录，避免和已运行的 Chrome 冲突
+    // 首次使用需登录，之后数据持久化
+    let profile_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?
+        .join("chrome-rpa-profile");
 
     let debug_port = 9222;
 
@@ -43,8 +48,14 @@ pub async fn launch_chrome(
         .spawn()
         .map_err(|e| format!("启动 Chrome 失败: {}", e))?;
 
-    // 等待 CDP 端口就绪
-    let cdp_url = wait_for_cdp(debug_port).await?;
+    // 等待 CDP 端口就绪（最多 10 秒）
+    let cdp_url = match wait_for_cdp(debug_port).await {
+        Ok(url) => url,
+        Err(e) => {
+            let _ = child.kill();
+            return Err(format!("Chrome 启动超时: {}。请确保没有其他 Chrome 实例占用调试端口。", e));
+        }
+    };
 
     // 存储 child 进程以便后续关闭
     let state = app.state::<crate::process::ChromeState>();
@@ -74,7 +85,7 @@ pub fn close_chrome(app: AppHandle) -> Result<(), String> {
 
 async fn wait_for_cdp(port: u16) -> Result<String, String> {
     let url = format!("http://127.0.0.1:{}/json/version", port);
-    for _ in 0..30 {
+    for _ in 0..20 {
         if let Ok(resp) = reqwest::get(&url).await {
             if resp.status().is_success() {
                 if let Ok(body) = resp.json::<serde_json::Value>().await {
