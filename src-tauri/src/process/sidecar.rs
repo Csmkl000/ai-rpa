@@ -186,7 +186,8 @@ fn spawn_io_threads(app: AppHandle, mut child: std::process::Child) {
                     if !display.trim().is_empty() {
                         engine_log!("[stdout] {}", display);
                     }
-                    let _ = app_out.emit("rpa-event", parse_engine_line(&line));
+                    // 用清理后的行发送事件，避免前端收到 ANSI 乱码
+                    let _ = app_out.emit("rpa-event", parse_engine_line(&display));
                 }
             }
         });
