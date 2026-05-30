@@ -5,7 +5,7 @@ import { useWorkflowStore } from "../../stores/workflowStore";
 import { logger } from "../../lib/logger";
 import type { EngineEvent } from "../../types/workflow";
 
-const MOD = "Engine";
+const MOD = "引擎";
 
 export function EngineListener() {
   const addEngineEvent = useWorkflowStore((s) => s.addEngineEvent);
@@ -67,7 +67,7 @@ export function EngineListener() {
           break;
         case "LOG":
           // 引擎 IO 日志只在 debug 级别记录，不刷屏
-          logger.engine("debug", "IO", `${data.log || data.message || ""}`, detail);
+          logger.engine("debug", "引擎IO", `${data.log || data.message || ""}`, detail);
           break;
       }
     });

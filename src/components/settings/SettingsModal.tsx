@@ -23,7 +23,7 @@ export function SettingsModal() {
   }, [settings]);
 
   const handleSave = async () => {
-    logger.info("Settings", `保存设置: ${local.llm_provider} / ${local.llm_model}`);
+    logger.info("设置", `保存设置: ${local.llm_provider} / ${local.llm_model}`);
     try {
       await updateSettings(local);
       setSettings(local);
@@ -31,7 +31,7 @@ export function SettingsModal() {
       setTimeout(() => setSaved(false), 2000);
     } // [Refactor: err 类型从 any 改为 unknown by Claude]
     catch (err: unknown) {
-      logger.error("Settings", `保存失败: ${err instanceof Error ? err.message : String(err)}`);
+      logger.error("设置", `保存失败: ${err instanceof Error ? err.message : String(err)}`);
     }
   };
 

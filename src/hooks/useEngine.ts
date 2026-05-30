@@ -3,7 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { useWorkflowStore } from "../stores/workflowStore";
 import { logger } from "../lib/logger";
 
-const MOD = "Engine";
+const MOD = "引擎";
 
 // 引擎事件监听已移到 EngineListener 组件（全局只注册一次）
 

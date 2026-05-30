@@ -4,7 +4,7 @@ import { useWorkflowStore } from "../stores/workflowStore";
 import { logger } from "../lib/logger";
 import type { Workflow, WorkflowStep, StepType } from "../types/workflow";
 
-const MOD = "Workflow";
+const MOD = "工作流";
 
 export function useWorkflow() {
   const {
