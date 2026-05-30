@@ -71,13 +71,21 @@ pub async fn launch_chrome(
     Ok(cdp_url)
 }
 
-/// 关闭已启动的 Chrome
+/// 关闭已启动的 Chrome（优雅关闭，保存状态）
 #[tauri::command]
 pub fn close_chrome(app: AppHandle) -> Result<(), String> {
     let state = app.state::<crate::process::ChromeState>();
     let mut guard = state.child.lock().unwrap();
     if let Some(mut child) = guard.take() {
+        // 先尝试通过 CDP 优雅关闭
+        let _ = std::process::Command::new("curl")
+            .args(["-s", "http://127.0.0.1:9222/json/close"])
+            .output();
+        // 等 2 秒让 Chrome 保存数据
+        std::thread::sleep(std::time::Duration::from_secs(2));
+        // 如果还活着再 kill
         let _ = child.kill();
+        let _ = child.wait();
         eprintln!("[CHROME] 已关闭");
     }
     Ok(())
