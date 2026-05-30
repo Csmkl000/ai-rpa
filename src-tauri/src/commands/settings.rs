@@ -10,6 +10,7 @@ pub struct AppSettings {
     pub base_url: Option<String>,
     pub proxy_url: Option<String>,
     pub headless: bool,
+    pub persist_browser_data: Option<bool>,
     pub cache_ttl_days: i64,
 }
 
@@ -22,6 +23,7 @@ impl Default for AppSettings {
             base_url: None,
             proxy_url: None,
             headless: true,
+            persist_browser_data: Some(false),
             cache_ttl_days: 30,
         }
     }

@@ -62,6 +62,7 @@ pub async fn spawn_engine(
     base_url: String,
     proxy_url: String,
     headless: bool,
+    persist_browser: bool,
 ) -> Result<(), String> {
     engine_log!("=== spawn_engine 开始 ===");
 
@@ -89,6 +90,8 @@ pub async fn spawn_engine(
         proxy_url,
         "--headless".to_string(),
         headless.to_string(),
+        "--persist-browser".to_string(),
+        persist_browser.to_string(),
     ];
 
     // 指南 6.1: 优先用 Tauri sidecar，找不到则回退到 std::process::Command

@@ -53,5 +53,6 @@ export interface AppSettings {
   base_url?: string;
   proxy_url?: string;
   headless: boolean;
+  persist_browser_data: boolean;
   cache_ttl_days: number;
 }

@@ -10,6 +10,7 @@ export interface StagehandConfig {
   model?: string;
   baseURL?: string;
   headless?: boolean;
+  persistBrowser?: boolean;
   provider?: string;
   recordMode?: boolean;
 }
@@ -65,6 +66,7 @@ export async function createStagehand(config: StagehandConfig): Promise<Stagehan
     localBrowserLaunchOptions: {
       headless: config.headless !== false,
       ...(config.proxyUrl ? { proxy: { server: config.proxyUrl } } : {}),
+      ...(config.persistBrowser ? { preserveUserDataDir: true } : {}),
     },
     ...(llmClient ? { llmClient } : {}),
   } as any);

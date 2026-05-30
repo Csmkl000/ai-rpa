@@ -144,6 +144,22 @@ export function SettingsModal() {
             </button>
           </div>
 
+          {/* 持久化浏览器数据 */}
+          <div className="flex items-center justify-between">
+            <div>
+              <label className="text-sm font-medium text-gray-700">保留浏览器数据</label>
+              <p className="text-xs text-gray-400">开启后复用 Cookie 和登录状态，关闭则每次全新浏览器</p>
+            </div>
+            <button
+              onClick={() => setLocal({ ...local, persist_browser_data: !local.persist_browser_data })}
+              className={`relative w-11 h-6 rounded-full transition-colors ${
+                local.persist_browser_data ? "bg-blue-500" : "bg-gray-300"
+              }`}
+            >
+              <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform shadow-sm ${local.persist_browser_data ? "translate-x-5" : ""}`} />
+            </button>
+          </div>
+
           {/* 缓存 TTL */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">缓存过期天数</label>

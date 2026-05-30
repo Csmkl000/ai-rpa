@@ -40,6 +40,7 @@ function parseArgs() {
   let baseURL = "";
   let proxyUrl = "";
   let headless = true;
+  let persist_browser = false;
 
   for (let i = 0; i < args.length; i++) {
     const next = args[i + 1];
@@ -55,6 +56,7 @@ function parseArgs() {
         else headless = true;
         break;
       case "--no-headless": headless = false; break;
+      case "--persist-browser": persist_browser = next === "true"; i++; break;
     }
   }
 
@@ -62,7 +64,7 @@ function parseArgs() {
 
   const workflowJson = require("fs").readFileSync(workflowFile, "utf-8");
   const workflow: Workflow = JSON.parse(workflowJson);
-  return { workflow, cacheDir: cacheDir || "/tmp/stagehand-cache", apiKey, model, baseURL, proxyUrl, headless };
+  return { workflow, cacheDir: cacheDir || "/tmp/stagehand-cache", apiKey, model, baseURL, proxyUrl, headless, persist_browser };
 }
 
 /** 执行单个步骤 */
@@ -109,10 +111,11 @@ async function executeStep(stagehand: Stagehand, step: WorkflowStep): Promise<vo
 }
 
 async function runEngine() {
-  const { workflow, cacheDir, apiKey, model, baseURL, proxyUrl, headless } = parseArgs();
+  const { workflow, cacheDir, apiKey, model, baseURL, proxyUrl, headless, persist_browser } = parseArgs();
 
   const stagehand = await createStagehand({
     cacheDir, apiKey, model, baseURL, proxyUrl, headless,
+    persistBrowser: persist_browser,
   });
 
   for (const step of workflow.steps) {
