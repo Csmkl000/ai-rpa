@@ -5,14 +5,17 @@ import { StatusBar } from "./components/layout/StatusBar";
 import { MainPanel } from "./components/layout/MainPanel";
 import { SettingsModal } from "./components/settings/SettingsModal";
 import { HomePage } from "./pages/HomePage";
-// [Refactor: 添加 Error Boundary 防止白屏 by Claude]
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { EngineListener } from "./components/layout/EngineListener";
 
 export default function App() {
   const page = useAppStore((s) => s.page);
 
   return (
     <ErrorBoundary>
+      {/* 引擎事件全局监听器，只挂载一次 */}
+      <EngineListener />
+
       <div className="h-screen flex flex-col bg-gray-50 text-gray-900 overflow-hidden">
         <TopBar />
 

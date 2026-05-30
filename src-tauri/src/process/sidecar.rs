@@ -25,6 +25,26 @@ macro_rules! engine_log {
     };
 }
 
+/// 去除 ANSI 转义码（终端颜色代码）
+fn strip_ansi(s: &str) -> String {
+    let mut result = String::with_capacity(s.len());
+    let mut in_escape = false;
+    for ch in s.chars() {
+        if ch == '\x1b' {
+            in_escape = true;
+            continue;
+        }
+        if in_escape {
+            if ch == 'm' {
+                in_escape = false;
+            }
+            continue;
+        }
+        result.push(ch);
+    }
+    result
+}
+
 fn chrono_now() -> String {
     let d = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -156,13 +176,16 @@ fn spawn_io_threads(app: AppHandle, mut child: std::process::Child) {
             use std::io::{BufRead, BufReader};
             for line in BufReader::new(stdout).lines() {
                 if let Ok(line) = line {
-                    // 截断过长行（如 base64 数据）
-                    let display = if line.len() > 200 {
-                        format!("{}...(已截断)", &line[..200])
+                    // 截断过长行 + 去除 ANSI 转义码
+                    let clean = strip_ansi(&line);
+                    let display = if clean.len() > 200 {
+                        format!("{}...", &clean[..200])
                     } else {
-                        line.clone()
+                        clean
                     };
-                    engine_log!("[stdout] {}", display);
+                    if !display.trim().is_empty() {
+                        engine_log!("[stdout] {}", display);
+                    }
                     let _ = app_out.emit("rpa-event", parse_engine_line(&line));
                 }
             }
